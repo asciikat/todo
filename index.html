@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Mission Board">
 <title>Mission Board</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@500;600;700&display=swap">
@@ -1088,6 +1091,12 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   overflow-wrap: anywhere;
 }
 .btn--sync { border-color: rgba(154, 107, 255, .6); color: var(--dusk-ink); }
+.btn--install { border-color: rgba(255, 61, 127, .6); color: var(--neon); }
+.icon-btn--install { color: var(--neon); border-color: rgba(255, 61, 127, .45); }
+.modal--install { border-color: rgba(255, 61, 127, .45); }
+.modal--install .eyebrow { color: var(--neon); }
+.install-steps { margin: 6px 0 0; padding-left: 22px; color: var(--ink); display: grid; gap: 8px; }
+.install-steps b { color: var(--neon); }
 .clock-note { font: 600 13px/1 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; }
 
 /* ───────────────────────── toast, floaters, promo ───────────────────────── */
@@ -1503,6 +1512,9 @@ body.is-shake .wrap { animation: shake .4s; }
         <span class="cash" id="total-cash">$0</span>
         <span class="stars" id="stars" role="img" aria-label="Heat level 0 of 5"></span>
       </div>
+      <button class="icon-btn icon-btn--install" id="install-hud" type="button" aria-label="Install Mission Board as an app" title="Install app" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
+      </button>
       <button class="icon-btn" id="mute-btn" type="button" aria-pressed="false" aria-label="Mute sound"></button>
     </div>
   </div>
@@ -1686,6 +1698,7 @@ body.is-shake .wrap { animation: shake .4s; }
       <button class="btn" id="export-btn" type="button">Save backup</button>
       <button class="btn" id="import-btn" type="button">Merge backup</button>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
+      <button class="btn btn--install" id="install-btn" type="button" hidden>Install app</button>
       <button class="btn btn--danger" id="clear-all-btn" type="button">Nuke data</button>
     </div>
   </footer>
@@ -1726,6 +1739,17 @@ body.is-shake .wrap { animation: shake .4s; }
 
 <!-- Optional cloud sync settings; see firebase-config.js. Missing file = sync stays off. -->
 <script src="firebase-config.js"></script>
+
+<dialog class="modal modal--install" id="install-dialog" aria-labelledby="install-title">
+  <form method="dialog">
+    <p class="eyebrow">Install</p>
+    <h2 id="install-title">Put it on your home screen</h2>
+    <ol class="install-steps" id="install-steps"></ol>
+    <div class="modal-actions">
+      <button class="btn" value="close" type="submit" autofocus>Got it</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog class="modal" id="nuke-dialog" aria-labelledby="nuke-title">
   <form method="dialog">
@@ -3608,6 +3632,82 @@ body.is-shake .wrap { animation: shake .4s; }
     reader.readAsText(file);
   });
 
+  // ── Install as an app ──────────────────────────────────────────────────
+  // Chrome/Edge (Android and desktop) offer a real install prompt; iPhone Safari
+  // and other browsers get short how-to steps instead.
+  (() => {
+    const hudBtn = $('install-hud');
+    const footBtn = $('install-btn');
+    const dialog = $('install-dialog');
+    const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const ua = navigator.userAgent;
+    const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    let deferred = null;
+
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+    }
+
+    const show = (hud) => {
+      if (standalone()) return;
+      footBtn.hidden = false;
+      if (hud) hudBtn.hidden = false;
+    };
+    const hide = () => { hudBtn.hidden = true; footBtn.hidden = true; };
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      show(true);
+    });
+    window.addEventListener('appinstalled', () => {
+      deferred = null;
+      hide();
+      toast('Installed · find Mission Board on your home screen');
+    });
+
+    function steps() {
+      if (isIOS) {
+        return [
+          'Open this page in <b>Safari</b>.',
+          'Tap the <b>Share</b> button (the square with an arrow).',
+          'Choose <b>Add to Home Screen</b>, then <b>Add</b>.',
+        ];
+      }
+      if (/android/i.test(ua)) {
+        return [
+          'Open this page in <b>Chrome</b>.',
+          'Tap the <b>⋮</b> menu at the top right.',
+          'Choose <b>Install app</b> or <b>Add to Home screen</b>.',
+        ];
+      }
+      return [
+        'Use <b>Chrome</b> or <b>Edge</b>.',
+        'Click the <b>install icon</b> at the right of the address bar, or open the browser menu.',
+        'Choose <b>Install Mission Board</b>.',
+      ];
+    }
+
+    async function install() {
+      if (deferred) {
+        deferred.prompt();
+        const choice = await deferred.userChoice.catch(() => null);
+        deferred = null;
+        if (choice && choice.outcome === 'accepted') hide();
+        else hudBtn.hidden = true; // the browser won't re-offer straight away; the footer button stays
+        return;
+      }
+      $('install-steps').innerHTML = steps().map((t) => `<li>${t}</li>`).join(''); // static text only
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else toast(steps()[2].replace(/<[^>]+>/g, ''));
+    }
+    hudBtn.addEventListener('click', install);
+    footBtn.addEventListener('click', install);
+
+    // Not installed yet: always offer the footer button (it shows steps if no prompt is available).
+    if (!standalone() && location.protocol.startsWith('http')) show(isIOS);
+  })();
+
   // ── Cloud sync (optional) ──────────────────────────────────────────────
   // Uses Firebase's free tier: Google sign-in plus one small database document
   // per person. Only switches on when firebase-config.js has your project's
@@ -3697,8 +3797,12 @@ body.is-shake .wrap { animation: shake .4s; }
     async function start() {
       docRef = firebase.firestore().collection('boards').doc(user.uid);
       setStatus('Syncing…');
+      const slow = setTimeout(() => {
+        if (!ready) setStatus('Still connecting · if this stays, allow this site in your ad or tracker blocker');
+      }, 15000);
       try {
         const snap = await docRef.get();
+        clearTimeout(slow);
         ready = true;
         const remote = snap.exists ? snap.data() : null;
         // A brand-new device joining an existing board: don't copy its untouched starter jobs across.
@@ -3713,9 +3817,13 @@ body.is-shake .wrap { animation: shake .4s; }
           if (!v || v.device === deviceId || !v.data) return;
           apply(v.data, false);
         }, () => setStatus('Sync paused · reload to reconnect'));
-      } catch {
+      } catch (e) {
+        clearTimeout(slow);
         ready = false;
-        setStatus('Sync failed · check the Firebase setup');
+        const code = (e && e.code) || 'unknown';
+        setStatus(code === 'unavailable'
+          ? "Can't reach the database · check your connection or ad blocker, then reload"
+          : `Sync failed (${code}) · reload to try again`);
       }
     }
     function stop() {

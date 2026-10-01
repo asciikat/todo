@@ -12,6 +12,13 @@ Without sync, your jobs and cash are saved only in each browser. **Save backup**
 from both are kept, jobs finished or dropped on either device stay gone, and
 cash, wins and heists keep the higher number.
 
+## Install as an app
+Open the site and tap **Install app** (bottom of the page, or the pink ⤓ icon at
+the top when your browser offers it). Android Chrome and desktop Chrome/Edge
+install it directly; on iPhone the button shows the Safari *Share → Add to Home
+Screen* steps. Once installed it opens full-screen with its own icon and works
+offline; sync catches up when you're back online.
+
 ## Turn on sync (phone ↔ desktop, free)
 Sync uses Firebase's free plan: you sign in with Google on each device and
 changes show up on the other one within a few seconds. About 10 minutes, once.
