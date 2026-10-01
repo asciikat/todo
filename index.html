@@ -1068,6 +1068,26 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .btn--danger { border-color: rgba(255, 51, 73, .55); color: #ff6b7a; background: rgba(255, 51, 73, .06); }
 .btn--solid-danger { border: 0; background: var(--siren-r); color: var(--ink); }
 .backup { display: flex; flex-wrap: wrap; gap: 8px; }
+.sync {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px;
+  border: 1px solid rgba(154, 107, 255, .4);
+  background: rgba(154, 107, 255, .07);
+}
+.sync-status {
+  flex: 1;
+  min-width: 0;
+  font: 700 13px/1.3 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--dusk-ink);
+  overflow-wrap: anywhere;
+}
+.btn--sync { border-color: rgba(154, 107, 255, .6); color: var(--dusk-ink); }
 .clock-note { font: 600 13px/1 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; }
 
 /* ───────────────────────── toast, floaters, promo ───────────────────────── */
@@ -1649,6 +1669,10 @@ body.is-shake .wrap { animation: shake .4s; }
   </div>
 
   <footer class="footer">
+    <div class="sync" id="sync-box" hidden>
+      <span class="sync-status" id="sync-status" aria-live="polite">Sync off</span>
+      <button class="btn btn--sync" id="sync-btn" type="button">Sign in to sync</button>
+    </div>
     <details class="devtools">
       <summary>Dev tools</summary>
       <p>Test the jail and cash system without waiting.</p>
@@ -1699,6 +1723,9 @@ body.is-shake .wrap { animation: shake .4s; }
   <div class="boss-hint">Tap to continue</div>
 </div>
 <canvas class="fx" id="fx" aria-hidden="true"></canvas>
+
+<!-- Optional cloud sync settings; see firebase-config.js. Missing file = sync stays off. -->
+<script src="firebase-config.js"></script>
 
 <dialog class="modal" id="nuke-dialog" aria-labelledby="nuke-title">
   <form method="dialog">
@@ -1922,7 +1949,13 @@ body.is-shake .wrap { animation: shake .4s; }
     store.set('gta_big_trophies', trophies);
     store.set('gta_tomorrow', tomorrowMissions);
     store.set('gta_gone', gone);
+    if (onSaved) onSaved();
   }
+  // Cloud sync (if switched on) listens here. holdSync() delays the next upload
+  // past an Undo window, so an undone drop never reaches the other device.
+  let onSaved = null;
+  let syncHoldUntil = 0;
+  const holdSync = () => { syncHoldUntil = Date.now() + 6000; };
 
   // First visit: three starter jobs that teach the moves.
   if (!store.has('gta_missions') && !store.has('gta_seeded')) {
@@ -2794,6 +2827,7 @@ body.is-shake .wrap { animation: shake .4s; }
     const [m] = missions.splice(index, 1);
     markGone(id);
     if (pickedId === id) pickedId = null;
+    holdSync();
     saveData();
     sfx.drop();
     haptic(10);
@@ -2814,6 +2848,7 @@ body.is-shake .wrap { animation: shake .4s; }
     const [text] = visibleCompletedMissions.splice(index, 1);
     if (text === undefined) return;
     lastBankedCount = visibleCompletedMissions.length;
+    holdSync();
     saveData();
     renderUI();
     toast('Removed from banked wins', {
@@ -2851,18 +2886,23 @@ body.is-shake .wrap { animation: shake .4s; }
     const index = missions.findIndex((m) => m.id === id);
     if (index < 0 || card.classList.contains('is-dropped')) return;
     const [m] = missions.splice(index, 1);
-    let newId = m.id;
-    while (tomorrowMissions.some((t) => t.id === newId)) newId++;
+    // A moved job gets a fresh id and the old one is marked gone, so the move
+    // carries over to other devices instead of leaving a copy in both lists.
+    let newId = Date.now();
+    while (tomorrowMissions.some((t) => t.id === newId) || missions.some((x) => x.id === newId)) newId++;
     const item = { id: newId, text: m.text, startsAt: nextMorning(now()) };
     tomorrowMissions.push(item);
+    markGone(m.id);
     if (pickedId === id) pickedId = null;
     openTray = null;
+    holdSync();
     saveData();
     sfx.lock();
     haptic(10);
     const undo = () => {
       tomorrowMissions = tomorrowMissions.filter((t) => t.id !== item.id);
       missions.splice(Math.min(index, missions.length), 0, m);
+      unmarkGone(m.id);
       saveData();
       renderUI();
     };
@@ -2876,9 +2916,10 @@ body.is-shake .wrap { animation: shake .4s; }
     const index = tomorrowMissions.findIndex((m) => m.id === id);
     if (index < 0) return;
     const [m] = tomorrowMissions.splice(index, 1);
-    let newId = m.id;
-    while (missions.some((x) => x.id === newId)) newId++;
+    let newId = Date.now();
+    while (missions.some((x) => x.id === newId) || tomorrowMissions.some((t) => t.id === newId)) newId++;
     missions.push({ id: newId, text: m.text, createdAt: now() });
+    markGone(m.id);
     justAddedId = newId;
     openTray = null;
     currentTab = 'active';
@@ -2895,6 +2936,7 @@ body.is-shake .wrap { animation: shake .4s; }
     const [m] = tomorrowMissions.splice(index, 1);
     markGone(id);
     openTray = null;
+    holdSync();
     saveData();
     sfx.drop();
     haptic(10);
@@ -2981,10 +3023,11 @@ body.is-shake .wrap { animation: shake .4s; }
   function coolDown(id, card) {
     const m = missions.find((x) => x.id === id);
     if (!m) return;
-    const prev = { heat: m.heat, heatAt: m.heatAt, heatUntil: m.heatUntil };
+    const prev = { heat: m.heat, heatUntil: m.heatUntil };
     m.heat = 0;
-    m.heatAt = 0;
+    m.heatAt = Date.now(); // newest change wins when devices sync
     openTray = null;
+    holdSync();
     saveData();
     sfx.sirenDown();
     const list = card.closest('.jobs');
@@ -2992,7 +3035,7 @@ body.is-shake .wrap { animation: shake .4s; }
     toast('Stars reset', {
       action: 'Undo',
       duration: 4000,
-      onAction: () => { Object.assign(m, prev); saveData(); flip(list, renderUI); },
+      onAction: () => { Object.assign(m, prev, { heatAt: Date.now() }); saveData(); flip(list, renderUI); },
     });
   }
 
@@ -3150,6 +3193,7 @@ body.is-shake .wrap { animation: shake .4s; }
     if (idx < 0) return;
     if (btn.dataset.act === 'prep-drop') {
       bigScore.preps.splice(idx, 1);
+      markGone(id);
       saveData();
       renderBig();
       sfx.drop();
@@ -3179,13 +3223,15 @@ body.is-shake .wrap { animation: shake .4s; }
     const saved = bigScore;
     if (!saved) return;
     bigScore = null;
+    markGone(saved.id);
+    holdSync();
     saveData();
     renderBig();
     sfx.drop();
     toast('Big score called off', {
       action: 'Undo',
       duration: 5000,
-      onAction: () => { if (!bigScore) { bigScore = saved; saveData(); renderBig(); } },
+      onAction: () => { if (!bigScore) { bigScore = saved; unmarkGone(saved.id); saveData(); renderBig(); } },
     });
   });
 
@@ -3271,6 +3317,7 @@ body.is-shake .wrap { animation: shake .4s; }
     totalWinsCount++;
     trophies.unshift({ text: b.text, at: now(), pay: BIG_PAY });
     trophies = trophies.slice(0, 100);
+    markGone(b.id);
     bigScore = null;
     saveData();
     const newRank = rankIndex(totalCash);
@@ -3474,7 +3521,16 @@ body.is-shake .wrap { animation: shake .4s; }
 
     const have = new Set([...missions, ...tomorrowMissions].map((m) => m.id));
     list(d.gta_missions).filter((m) => isJob(m, 'createdAt')).forEach((m) => {
-      if (goneSet.has(m.id) || have.has(m.id)) return;
+      if (goneSet.has(m.id)) return;
+      if (have.has(m.id)) {
+        // Same job on both: the most recent star change wins.
+        const mine = missions.find((x) => x.id === m.id);
+        if (mine && (m.heatAt || 0) > (mine.heatAt || 0)) {
+          mine.heat = m.heat || 0; mine.heatAt = m.heatAt; mine.heatUntil = m.heatUntil;
+          sum.updated = (sum.updated || 0) + 1;
+        }
+        return;
+      }
       missions.push(m); have.add(m.id); sum.added++;
     });
     list(d.gta_tomorrow).filter((m) => isJob(m, 'startsAt')).forEach((m) => {
@@ -3482,24 +3538,29 @@ body.is-shake .wrap { animation: shake .4s; }
       tomorrowMissions.push(m); have.add(m.id); sum.lined++;
     });
 
-    const bank = visibleCompletedMissions.slice();
-    list(d.gta_visible_completed).filter((t) => typeof t === 'string').forEach((t) => { if (!bank.includes(t)) bank.push(t); });
-    visibleCompletedMissions = bank.slice(0, HEIST_SIZE - 1);
+    // Banked wins: the device with more lifetime wins has the newest heist progress
+    // (so a heist scored on one device isn't undone by the other's old list).
+    if (toInt(d.gta_wins) > totalWinsCount) {
+      visibleCompletedMissions = list(d.gta_visible_completed).filter((t) => typeof t === 'string').slice(0, HEIST_SIZE - 1);
+    }
     lastBankedCount = visibleCompletedMissions.length;
 
     totalCash = Math.max(totalCash, toInt(d.gta_cash));
     totalWinsCount = Math.max(totalWinsCount, toInt(d.gta_wins));
     heistsScored = Math.max(heistsScored, toInt(d.gta_heists));
 
+    if (bigScore && goneSet.has(bigScore.id)) bigScore = null; // pulled off or called off elsewhere
     const inBig = cleanBig(d.gta_big_score);
-    if (inBig && !bigScore) bigScore = inBig;
+    if (inBig && goneSet.has(inBig.id)) { /* already finished here */ }
+    else if (inBig && !bigScore) bigScore = inBig;
     else if (inBig && bigScore && inBig.id === bigScore.id) {
       inBig.preps.forEach((pr) => {
         const mine = bigScore.preps.find((x) => x.id === pr.id);
         if (mine) mine.done = mine.done || pr.done;
-        else if (bigScore.preps.length < MAX_PREPS) bigScore.preps.push(pr);
+        else if (!goneSet.has(pr.id) && bigScore.preps.length < MAX_PREPS) bigScore.preps.push(pr);
       });
     }
+    if (bigScore) bigScore.preps = bigScore.preps.filter((pr) => !goneSet.has(pr.id));
 
     const seen = new Set(trophies.map((t) => `${t.text}|${t.at}`));
     list(d.gta_big_trophies).filter((t) => t && typeof t.text === 'string' && Number.isFinite(t.at)).forEach((t) => {
@@ -3546,6 +3607,167 @@ body.is-shake .wrap { animation: shake .4s; }
     };
     reader.readAsText(file);
   });
+
+  // ── Cloud sync (optional) ──────────────────────────────────────────────
+  // Uses Firebase's free tier: Google sign-in plus one small database document
+  // per person. Only switches on when firebase-config.js has your project's
+  // settings; otherwise the board stays on this device only.
+  (() => {
+    const cfg = window.MISSION_BOARD_FIREBASE;
+    if (!cfg || !cfg.apiKey) return;
+    const box = $('sync-box');
+    const statusEl = $('sync-status');
+    const btn = $('sync-btn');
+    box.hidden = false;
+    const deviceId = Math.random().toString(36).slice(2, 10); // per open page, to ignore our own echoes
+    let auth = null;
+    let docRef = null;
+    let user = null;
+    let unsub = null;
+    let ready = false;
+    let applying = false;
+    let timer = 0;
+    const setStatus = (text) => { statusEl.textContent = text; };
+    const who = () => (user && user.email) || 'your account';
+    const list = (v) => (Array.isArray(v) ? v : []);
+    const payload = () => JSON.parse(JSON.stringify({
+      gta_missions: missions, gta_tomorrow: tomorrowMissions, gta_visible_completed: visibleCompletedMissions,
+      gta_wins: totalWinsCount, gta_cash: totalCash, gta_heists: heistsScored,
+      gta_big_score: bigScore, gta_big_trophies: trophies, gta_gone: gone,
+    }));
+    const load = (src) => new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error(`Could not load ${src}`));
+      document.head.append(s);
+    });
+
+    // Does the cloud copy lack something this device has? Then upload.
+    function cloudIsBehind(d) {
+      const theirIds = new Set([...list(d.gta_missions), ...list(d.gta_tomorrow)].map((m) => m && m.id));
+      if ([...missions, ...tomorrowMissions].some((m) => !theirIds.has(m.id))) return true;
+      const theirGone = new Set(list(d.gta_gone));
+      if (gone.some((g) => !theirGone.has(g))) return true;
+      if (totalCash > toInt(d.gta_cash) || totalWinsCount > toInt(d.gta_wins) || heistsScored > toInt(d.gta_heists)) return true;
+      if (trophies.length > list(d.gta_big_trophies).length) return true;
+      const theirs = new Map(list(d.gta_missions).map((m) => [m && m.id, m]));
+      if (missions.some((m) => (m.heatAt || 0) > ((theirs.get(m.id) || {}).heatAt || 0))) return true;
+      const tb = d.gta_big_score;
+      if (bigScore && !tb) return true;
+      if (bigScore && tb && tb.id === bigScore.id) {
+        const tp = list(tb.preps);
+        if (bigScore.preps.length > tp.length || bigScore.preps.filter((p) => p.done).length > tp.filter((p) => p && p.done).length) return true;
+      }
+      return false;
+    }
+
+    function apply(d, quiet) {
+      applying = true;
+      let sum;
+      try { sum = mergeBackup(d || {}); } finally { applying = false; }
+      if (!quiet) {
+        const bits = [];
+        if (sum.added) bits.push(`${sum.added} job${sum.added === 1 ? '' : 's'} added`);
+        if (sum.lined) bits.push(`${sum.lined} lined up`);
+        if (sum.removed) bits.push(`${sum.removed} done or moved`);
+        if (sum.updated) bits.push(`${sum.updated} starred`);
+        if (bits.length) toast(`Synced · ${bits.join(' · ')}`);
+      }
+      if (cloudIsBehind(d || {})) schedule(1500);
+      else setStatus(`Synced · ${who()}`);
+    }
+
+    function schedule(delay = 1200) {
+      if (!ready || applying) return;
+      clearTimeout(timer);
+      timer = setTimeout(push, Math.max(delay, syncHoldUntil - Date.now()));
+      setStatus('Saving…');
+    }
+    async function push() {
+      if (!ready) return;
+      try {
+        await docRef.set({ data: payload(), device: deviceId, updatedAt: Date.now() });
+        setStatus(`Synced · ${who()}`);
+      } catch {
+        setStatus("Sync failed · it'll retry on your next change");
+      }
+    }
+
+    async function start() {
+      docRef = firebase.firestore().collection('boards').doc(user.uid);
+      setStatus('Syncing…');
+      try {
+        const snap = await docRef.get();
+        ready = true;
+        const remote = snap.exists ? snap.data() : null;
+        // A brand-new device joining an existing board: don't copy its untouched starter jobs across.
+        const untouched = totalWinsCount === 0 && totalCash === 0 && !tomorrowMissions.length
+          && missions.every((m) => STARTER_JOBS.includes(m.text));
+        if (remote && remote.data && untouched) missions = []; // the merge below saves
+        if (remote && remote.data) apply(remote.data, true);
+        else await push();
+        unsub = docRef.onSnapshot((s) => {
+          if (!s.exists || (s.metadata && s.metadata.hasPendingWrites)) return;
+          const v = s.data();
+          if (!v || v.device === deviceId || !v.data) return;
+          apply(v.data, false);
+        }, () => setStatus('Sync paused · reload to reconnect'));
+      } catch {
+        ready = false;
+        setStatus('Sync failed · check the Firebase setup');
+      }
+    }
+    function stop() {
+      ready = false;
+      clearTimeout(timer);
+      if (unsub) unsub();
+      unsub = null;
+    }
+
+    async function init() {
+      btn.disabled = true;
+      setStatus('Connecting…');
+      const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+      try {
+        await load(`${base}firebase-app-compat.js`);
+        await load(`${base}firebase-auth-compat.js`);
+        await load(`${base}firebase-firestore-compat.js`);
+        firebase.initializeApp(cfg);
+        auth = firebase.auth();
+        auth.onAuthStateChanged((u) => {
+          user = u;
+          btn.disabled = false;
+          btn.textContent = u ? 'Sign out' : 'Sign in to sync';
+          if (u) start();
+          else { stop(); setStatus('Sync off · sign in on each device'); }
+        });
+      } catch {
+        btn.disabled = false;
+        setStatus("Couldn't reach the sync service · tap to retry");
+      }
+    }
+
+    btn.addEventListener('click', async () => {
+      if (!auth) { init(); return; }
+      if (user) {
+        await auth.signOut();
+        toast('Signed out · this device keeps its copy');
+        return;
+      }
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        await auth.signInWithPopup(provider);
+      } catch (e) {
+        const code = (e && e.code) || '';
+        if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') auth.signInWithRedirect(provider);
+        else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') toast("Sign-in didn't finish");
+      }
+    });
+
+    onSaved = () => schedule();
+    init();
+  })();
 
   $('skip-day').addEventListener('click', () => {
     simulatedTimeOffset += DAY_MS;
