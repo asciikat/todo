@@ -1,0 +1,3543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0a14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mission Board">
+<title>Mission Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@500;600;700&display=swap">
+<style>
+/* Layout: a sticky game HUD over a night-city postcard; below it the job board,
+   with the heist tracker + pay rates in a side rail on desktop that folds under
+   the board on phones. One dark world on purpose: it's a game, not a settings page. */
+:root {
+  color-scheme: dark;
+  /* colour */
+  --night: #0d0a14;        /* page ground: purple-black asphalt at night */
+  --asphalt: #16111f;      /* panels */
+  --asphalt-hi: #1f1830;   /* cards, inputs */
+  --line: rgba(236, 222, 255, 0.10);
+  --ink: #f7f2ff;
+  --smog: #a69cbc;
+  --dim: #6f6686;
+  --shade: #05040a;        /* outlines, letterbox bars */
+  --neon: #ff3d7f;         /* main action: sunset pink */
+  --flare: #ff9b3d;        /* sunset orange */
+  --gold: #ffd166;         /* bonus pay + celebrations */
+  --palm: #2ee6c8;         /* finish a job */
+  --cash: #7cf29a;         /* money, and only money */
+  --siren-r: #ff3349;
+  --siren-b: #3d7bff;
+  --dusk: #9a6bff;         /* tomorrow */
+  --dusk-ink: #c2a8ff;
+  /* type */
+  --font-display: "Big Shoulders Display", "Anton", Impact, "Arial Narrow Bold", sans-serif;
+  --font-hud: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* motion */
+  --snap: cubic-bezier(.2, 1.3, .4, 1);
+  --glide: cubic-bezier(.2, .8, .2, 1);
+  --cut: 14px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; background: var(--night); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--night);
+  color: var(--ink);
+  font: 500 16px/1.45 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+/* city glow behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(110% 55% at 85% -10%, rgba(255, 61, 127, .16), transparent 60%),
+    radial-gradient(80% 45% at -10% 0%, rgba(110, 60, 255, .14), transparent 60%),
+    radial-gradient(70% 40% at 50% 110%, rgba(46, 230, 200, .06), transparent 70%);
+}
+/* film grain */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+button { font: inherit; color: inherit; touch-action: manipulation; }
+button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.eyebrow {
+  margin: 0 0 6px;
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.panel-title {
+  margin: 0;
+  font: 900 32px/.9 var(--font-display);
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+/* ───────────────────────── HUD ───────────────────────── */
+.hud {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: linear-gradient(180deg, rgba(13, 10, 20, .95), rgba(13, 10, 20, .82));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+}
+.hud-inner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rank { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rank-badge {
+  flex: none;
+  width: 40px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(160deg, var(--neon), var(--flare));
+  color: var(--shade);
+  font: 900 22px/1 var(--font-display);
+}
+.rank-text { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.rank-name {
+  font: 700 16px/1 var(--font-hud);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rank-bar {
+  width: clamp(84px, 24vw, 170px);
+  height: 5px;
+  background: rgba(255, 255, 255, .1);
+  transform: skewX(-24deg);
+  overflow: hidden;
+}
+.rank-bar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--neon), var(--flare));
+  transition: width .7s var(--glide);
+}
+.rank-next {
+  font: 600 11px/1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--smog);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stash { display: flex; align-items: center; gap: 10px; flex: none; }
+.stash-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.cash {
+  font: 900 clamp(30px, 8vw, 40px)/.9 var(--font-display);
+  color: var(--cash);
+  letter-spacing: .01em;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    -2px -2px 0 var(--shade), 2px -2px 0 var(--shade),
+    -2px 2px 0 var(--shade), 2px 2px 0 var(--shade), 0 4px 0 var(--shade);
+  transform-origin: right center;
+}
+.cash.is-bump { animation: bump .55s var(--snap); }
+@keyframes bump {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.18); filter: brightness(1.5); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.stars { display: flex; gap: 2px; }
+.star { width: 15px; height: 15px; display: block; }
+.star path { fill: rgba(255, 255, 255, .06); stroke: rgba(255, 255, 255, .28); stroke-width: 1.6; stroke-linejoin: round; }
+.star.is-hot path { fill: var(--ink); stroke: var(--shade); }
+.stars.is-flash .star.is-hot { animation: starBlink .55s steps(2, jump-none) infinite; }
+@keyframes starBlink { 50% { opacity: .25; } }
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--smog);
+  cursor: pointer;
+  padding: 0;
+}
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn[aria-pressed="true"] { color: var(--dim); }
+
+/* ───────────────────────── page ───────────────────────── */
+.wrap {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 16px 16px calc(56px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* hero postcard: the sky is painted on canvas and follows the real time of day */
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 214px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 4px;
+  overflow: hidden;
+  background: #2a1448;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%);
+}
+.hero-sky { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; display: block; }
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(8, 6, 14, .7) 0%, rgba(8, 6, 14, .2) 55%, transparent 80%),
+    linear-gradient(0deg, rgba(8, 6, 14, .55), transparent 60%);
+}
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  background: rgba(5, 4, 10, .55);
+  border: 1px solid rgba(255, 255, 255, .14);
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neon);
+  box-shadow: 0 0 10px var(--neon);
+  animation: live 1.8s ease-in-out infinite;
+}
+@keyframes live { 50% { opacity: .35; } }
+.hero h1 {
+  margin: 8px 0 0;
+  font: 900 clamp(56px, 14.5vw, 120px)/.8 var(--font-display);
+  letter-spacing: .005em;
+  text-transform: uppercase;
+  transform: skewX(-7deg);
+  transform-origin: left bottom;
+  filter: drop-shadow(0 4px 0 rgba(5, 4, 10, .9));
+}
+.hero h1 .grad {
+  background: linear-gradient(100deg, var(--neon) 10%, var(--flare) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-tag {
+  margin: 8px 0 0;
+  font: 600 16px/1.35 var(--font-body);
+  color: rgba(247, 242, 255, .9);
+  max-width: 34ch;
+  text-shadow: 0 1px 8px rgba(5, 4, 10, .8);
+}
+
+/* layout: on phones the job board comes first, everything else follows */
+.layout { display: flex; flex-direction: column; gap: 16px; }
+.side { display: contents; }
+.board { order: 1; }
+.big { order: 2; scroll-margin-top: 76px; }
+.heist { order: 3; }
+.intel { order: 4; }
+
+.panel {
+  position: relative;
+  background: var(--asphalt);
+  border: 1px solid var(--line);
+  padding: 18px;
+}
+
+/* ───────────────────────── add-a-job composer (inside the board) ───────────────────────── */
+.composer { margin: 0; padding: 12px 16px 0; }
+.dock-row {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: var(--asphalt-hi);
+  border: 1px solid var(--line);
+  transition: border-color .2s, box-shadow .2s;
+}
+.dock-row:focus-within {
+  border-color: rgba(255, 61, 127, .7);
+  box-shadow: 0 0 0 4px rgba(255, 61, 127, .14), 0 14px 40px -14px rgba(255, 61, 127, .55);
+}
+.composer input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  font: 600 17px/1.2 var(--font-body);
+  padding: 10px 8px;
+}
+.composer input::placeholder { color: var(--dim); }
+.add-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 18px 0 14px;
+  border: 0;
+  background: var(--neon);
+  color: var(--shade);
+  font: 800 18px/1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+  transition: transform .12s, filter .2s;
+}
+.add-btn svg { width: 20px; height: 20px; }
+.add-btn:active { transform: translateY(1px) scale(.97); }
+.add-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--ink); }
+.composer.is-shake .dock-row { animation: nudge .35s; }
+.composer--tomorrow .dock-row:focus-within {
+  border-color: rgba(154, 107, 255, .75);
+  box-shadow: 0 0 0 4px rgba(154, 107, 255, .16), 0 14px 40px -14px rgba(154, 107, 255, .55);
+}
+.composer--tomorrow .add-btn { background: var(--dusk); }
+@keyframes nudge { 25% { transform: translateX(-6px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+
+/* ───────────────────────── heist tracker ───────────────────────── */
+.heist {
+  background: linear-gradient(180deg, rgba(255, 209, 102, .09), transparent 45%), var(--asphalt);
+  border-color: rgba(255, 209, 102, .22);
+}
+.heist-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.heist-count {
+  font: 900 48px/.8 var(--font-display);
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.heist-count small { font-size: 24px; color: var(--dim); }
+.slots {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.slot {
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed rgba(255, 209, 102, .32);
+  color: rgba(255, 209, 102, .4);
+  font: 800 20px/1 var(--font-display);
+  transform: skewX(-6deg);
+}
+.slot svg { width: 58%; height: auto; transform: skewX(6deg); }
+.slot.is-filled {
+  border: 0;
+  background: linear-gradient(160deg, #ffe39a, var(--gold) 45%, var(--flare));
+  color: var(--shade);
+  box-shadow: 0 8px 24px -10px rgba(255, 170, 60, .8);
+}
+.slot.is-new { animation: slotPop .6s var(--snap); }
+@keyframes slotPop {
+  0% { transform: skewX(-6deg) scale(.3) rotate(-12deg); opacity: 0; }
+  100% { transform: skewX(-6deg) scale(1) rotate(0); opacity: 1; }
+}
+.banked { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.banked li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 6px 10px;
+  background: rgba(255, 209, 102, .07);
+}
+.banked li > svg { width: 16px; height: 16px; color: var(--gold); }
+.banked-text {
+  font: 600 15px/1.3 var(--font-body);
+  color: var(--smog);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 209, 102, .7);
+  text-decoration-thickness: 2px;
+  overflow-wrap: anywhere;
+}
+.banked-empty { margin: 14px 0 0; font-size: 15px; color: var(--smog); }
+.mini-x {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+.mini-x::after { content: ""; position: absolute; inset: -6px; }
+.mini-x svg { width: 15px; height: 15px; }
+.lifetime {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font: 600 13px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.lifetime b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ───────────────────────── the big score ───────────────────────── */
+@property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --hold { syntax: "<number>"; inherits: true; initial-value: 0; }
+.big {
+  position: relative;
+  padding: 2px;
+  background: conic-gradient(from var(--spin), var(--gold), var(--flare), var(--neon), #9a6bff, var(--palm), var(--gold));
+  box-shadow: 0 24px 60px -28px rgba(255, 170, 60, .6);
+  animation: spin 7s linear infinite;
+}
+@keyframes spin { to { --spin: 360deg; } }
+.big-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(255, 209, 102, .14), transparent 55%),
+    linear-gradient(180deg, #1c150c, #130e19 65%);
+}
+.big-empty, .big-active { display: flex; flex-direction: column; gap: 14px; }
+.big-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.big-head .eyebrow { color: var(--gold); }
+.big-pay { text-align: right; white-space: nowrap; }
+.big-pay small {
+  display: block;
+  margin-bottom: 2px;
+  font: 700 11px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.big-pay b { display: block; font: 900 50px/.9 var(--font-display); color: var(--gold); text-shadow: 0 0 24px rgba(255, 209, 102, .35); }
+.big-pitch { margin: 0; color: var(--smog); max-width: 52ch; }
+.big-form, .prep-form { display: flex; gap: 8px; }
+.big-form input, .prep-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 209, 102, .3);
+  background: rgba(5, 4, 10, .45);
+  color: var(--ink);
+  font: 600 17px/1.2 var(--font-body);
+  outline: 0;
+}
+.big-form input:focus, .prep-form input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255, 209, 102, .18); }
+.big-form input::placeholder, .prep-form input::placeholder { color: var(--dim); }
+.big-plan {
+  flex: none;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 0;
+  background: var(--gold);
+  color: var(--shade);
+  font: 800 16px/1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.big-text { margin: 0; font: 700 clamp(22px, 5.4vw, 28px)/1.2 var(--font-body); overflow-wrap: anywhere; text-wrap: balance; }
+.preps-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.preps-head .eyebrow { margin: 0; }
+.preps-head .eyebrow b { color: var(--ink); }
+.prep-pay { font: 700 12px/1 var(--font-hud); letter-spacing: .12em; text-transform: uppercase; color: var(--cash); }
+.preps { list-style: none; margin: -6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.preps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 6px 6px;
+  background: rgba(255, 255, 255, .04);
+}
+.prep-done {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 209, 102, .55);
+  background: transparent;
+  color: var(--gold);
+  cursor: pointer;
+}
+.prep-done svg { width: 17px; height: 17px; opacity: .3; }
+.prep-text { font: 600 16px/1.3 var(--font-body); overflow-wrap: anywhere; }
+.preps li.is-done .prep-done { background: var(--gold); border-color: var(--gold); color: var(--shade); cursor: default; }
+.preps li.is-done .prep-done svg { opacity: 1; }
+.preps li.is-done .prep-text {
+  color: var(--smog);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 209, 102, .7);
+  text-decoration-thickness: 2px;
+}
+.prep-form button {
+  flex: none;
+  width: 48px;
+  min-height: 46px;
+  border: 1px solid rgba(255, 209, 102, .4);
+  background: rgba(255, 209, 102, .08);
+  color: var(--gold);
+  font: 800 26px/1 var(--font-hud);
+  cursor: pointer;
+}
+.hold-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+.hold-btn {
+  --hold: 0;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 66px;
+  padding: 0 16px;
+  border: 0;
+  background: #2b200e;
+  color: var(--gold);
+  font: 900 26px/1 var(--font-display);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--gold);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.hold-btn:not(.is-holding) { transition: --hold .4s ease-out; }
+.hold-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 5px var(--ink); }
+.hold-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--gold), var(--flare) 70%, var(--neon));
+  transform-origin: left center;
+  transform: scaleX(var(--hold));
+  pointer-events: none;
+}
+.hold-label, .hold-label-top { display: flex; align-items: center; justify-content: center; gap: 10px; pointer-events: none; }
+.hold-label { position: relative; }
+.hold-label svg, .hold-label-top svg { width: 24px; height: 24px; flex: none; }
+.hold-label-top { position: absolute; inset: 0; color: var(--shade); clip-path: inset(0 calc((1 - var(--hold)) * 100%) 0 0); }
+.hold-btn.is-intense { animation: holdJitter .09s linear infinite; }
+@keyframes holdJitter {
+  25% { transform: translate(1px, -1px); }
+  50% { transform: translate(-1px, 1px); }
+  75% { transform: translate(1px, 1px); }
+}
+.hold-hint { margin: 0; font: 600 13px/1.2 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; color: var(--smog); text-align: center; }
+.hold-hint.is-nudge { color: var(--gold); }
+.big-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font: 600 12px/1.2 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.link-btn {
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--smog);
+  font: 700 13px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.trophies { padding-top: 12px; border-top: 1px solid var(--line); }
+.trophies .eyebrow b { color: var(--gold); }
+.trophy-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.trophy-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; font: 600 15px/1.3 var(--font-body); }
+.trophy-list svg { width: 18px; height: 18px; color: var(--gold); }
+.trophy-list span { overflow-wrap: anywhere; }
+.trophy-list time { font: 600 12px/1 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
+
+/* ───────────────────────── board ───────────────────────── */
+.board { padding: 0; }
+.board-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.tabs { display: flex; gap: 22px; }
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 12px;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: 900 30px/1 var(--font-display);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color .2s;
+}
+.tab[aria-selected="true"] { color: var(--ink); }
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background: var(--neon);
+}
+#tab-jail[aria-selected="true"]::after { background: var(--siren-r); }
+#tab-tomorrow[aria-selected="true"]::after { background: var(--dusk); }
+.count {
+  min-width: 24px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--smog);
+  font: 700 14px/1 var(--font-hud);
+  letter-spacing: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tab[aria-selected="true"] .count { background: var(--ink); color: var(--shade); }
+.tab .count.is-hot { background: var(--siren-r); color: var(--ink); }
+.tab .count.is-five0 { animation: sirenBadge .7s steps(2, jump-none) infinite; }
+@keyframes sirenBadge { 0% { background: var(--siren-r); } 100% { background: var(--siren-b); } }
+.pick-btn {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 61, 127, .5);
+  background: rgba(255, 61, 127, .06);
+  color: var(--neon);
+  font: 700 13px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .2s, color .2s;
+}
+.pick-btn svg { width: 17px; height: 17px; }
+.pick-btn:disabled { opacity: .5; cursor: progress; }
+.pick-btn.is-rolling svg { animation: roll .5s linear infinite; }
+@keyframes roll { to { transform: rotate(360deg); } }
+
+.board-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 0;
+}
+.board-bar-text {
+  min-width: 0;
+  font: 700 12px/1.25 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.board-bar-text b { color: var(--cash); font-weight: 800; }
+.jobs { list-style: none; margin: 0; padding: 10px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+.job {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 7px 12px 7px 7px;
+  background: var(--asphalt-hi);
+  border: 1px solid var(--line);
+  transition: border-color .2s, box-shadow .2s, background-color .12s;
+}
+.job-done {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(46, 230, 200, .6);
+  background: rgba(46, 230, 200, .07);
+  color: var(--palm);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s, transform .12s;
+}
+.job-done svg { width: 22px; height: 22px; opacity: .32; transition: opacity .15s, transform .15s; }
+.job-done:active { transform: scale(.9); }
+/* tapping the job text opens its actions */
+.job-body {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.job-text { display: block; font: 600 16px/1.25 var(--font-body); overflow-wrap: anywhere; }
+.job-meta {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font: 600 11px/1.1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.job-meta svg { width: 13px; height: 13px; flex: none; }
+.fuse { display: inline-flex; gap: 2px; }
+.fuse i { width: 5px; height: 9px; background: rgba(255, 255, 255, .1); transform: skewX(-18deg); }
+.fuse i.on { background: var(--palm); }
+.job-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+/* per-job wanted level: tap the stars to make a job more urgent */
+.wanted {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.wanted::after { content: ""; position: absolute; inset: -10px -8px -9px -10px; }
+.wanted .star { width: 16px; height: 16px; }
+.wanted .star path { stroke-width: 2; }
+.wanted:active { transform: scale(.92); }
+.heat-row { display: flex; align-items: center; gap: 4px; }
+.heat-reset {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .1);
+  color: var(--smog);
+  cursor: pointer;
+}
+.heat-reset::after { content: ""; position: absolute; inset: -10px -4px; }
+.heat-reset svg { width: 10px; height: 10px; }
+.pay {
+  font: 900 24px/1 var(--font-display);
+  color: var(--cash);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.job-tray {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 0 2px;
+  border-top: 1px solid var(--line);
+}
+.tray-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  font: 700 13px/1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tray-btn svg { width: 16px; height: 16px; }
+.tray-btn--dusk { border-color: rgba(154, 107, 255, .5); color: var(--dusk-ink); }
+.tray-btn--danger { border-color: rgba(255, 51, 73, .45); color: #ff6b7a; }
+.job.is-open { border-color: rgba(255, 255, 255, .26); }
+/* wanted level 3+: the cops are on it; 5: full lights */
+.job--hot { border-color: rgba(255, 51, 73, .55); }
+.job--wanted-5 { animation: copLights .9s steps(2, jump-none) infinite; }
+@keyframes copLights {
+  0% { border-color: var(--siren-r); box-shadow: 0 0 18px -4px rgba(255, 51, 73, .65); }
+  100% { border-color: var(--siren-b); box-shadow: 0 0 18px -4px rgba(61, 123, 255, .65); }
+}
+.job.is-bumped { animation: bumped .7s ease-out; }
+@keyframes bumped {
+  0% { box-shadow: 0 0 0 2px var(--siren-r), 0 0 26px rgba(255, 51, 73, .6); }
+  50% { box-shadow: 0 0 0 2px var(--siren-b), 0 0 26px rgba(61, 123, 255, .6); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.job.is-maxed { animation: nudge .35s; }
+
+/* tomorrow: lined up, not live yet */
+.job--tomorrow {
+  background: rgba(154, 107, 255, .06);
+  border-style: dashed;
+  border-color: rgba(154, 107, 255, .38);
+}
+.job--tomorrow .job-done { border-style: dashed; border-color: rgba(154, 107, 255, .65); background: transparent; color: var(--dusk-ink); }
+.job--tomorrow .job-done svg { opacity: .85; }
+.job--tomorrow .job-age { color: var(--dusk-ink); }
+.job--tomorrow .job-meta svg { color: var(--dusk-ink); }
+.job--tomorrow .pay { color: rgba(124, 242, 154, .55); }
+
+/* big-score shortcut at the foot of today's list (phones) */
+.big-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 32px);
+  margin: 0 16px 16px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(255, 209, 102, .5);
+  background: rgba(255, 209, 102, .07);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.big-strip > svg { flex: none; width: 20px; height: 20px; color: var(--gold); }
+.big-strip-text { flex: 1; min-width: 0; font: 600 15px/1.25 var(--font-body); overflow-wrap: anywhere; }
+.big-strip-text small { display: block; font: 700 11px/1 var(--font-hud); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+.big-strip-meta { flex: none; font: 900 20px/1 var(--font-display); color: var(--gold); }
+
+/* last call: day 5–6 pays double */
+.job--lastcall {
+  border-color: rgba(255, 209, 102, .5);
+  background: linear-gradient(100deg, rgba(255, 209, 102, .11), transparent 50%), var(--asphalt-hi);
+}
+.job--lastcall .pay { color: var(--gold); }
+.job--lastcall .fuse i.on { background: var(--gold); }
+.job--lastcall .job-age { color: var(--gold); }
+.job--final .fuse i.on { background: var(--flare); animation: fuse .9s ease-in-out infinite; }
+@keyframes fuse { 50% { opacity: .3; } }
+
+/* jail */
+.job--jail {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 26px, rgba(255, 255, 255, .035) 26px 30px),
+    #1b1221;
+  border-color: rgba(255, 51, 73, .3);
+}
+.job--jail .job-done { border-color: rgba(255, 51, 73, .65); background: rgba(255, 51, 73, .08); color: var(--siren-r); }
+.job--jail .job-text { color: rgba(247, 242, 255, .85); }
+.job--jail .job-age { color: #ff8a96; }
+.siren {
+  grid-column: 1 / -1;
+  margin: -7px -12px 6px -7px;
+  padding: 6px 10px;
+  font: 800 13px/1.15 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: 0 1px 2px rgba(5, 4, 10, .6);
+  background: linear-gradient(90deg, var(--siren-r) 0 50%, var(--siren-b) 50% 100%);
+  background-size: 200% 100%;
+  animation: siren .8s steps(2, jump-none) infinite;
+}
+@keyframes siren { 0% { background-position: 0 0; } 100% { background-position: 100% 0; } }
+
+/* pick-for-me roulette: the scanning row inverts, like a game menu */
+.job.is-scan { background: var(--ink); border-color: var(--ink); }
+.job.is-scan, .job.is-scan .job-text, .job.is-scan .job-meta, .job.is-scan .job-age, .job.is-scan .pay { color: var(--shade); }
+.job.is-scan .wanted .star path { stroke: var(--shade); }
+.job.is-picked {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px var(--neon), 0 16px 40px -14px rgba(255, 61, 127, .7);
+}
+.job.is-picked::before {
+  content: "Your next job";
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 4px 8px;
+  background: var(--neon);
+  color: var(--shade);
+  font: 800 11px/1 var(--font-hud);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.job.is-picked .job-done { animation: blip 1.6s ease-out infinite; }
+@keyframes blip {
+  0% { box-shadow: 0 0 0 0 rgba(46, 230, 200, .55); }
+  100% { box-shadow: 0 0 0 16px rgba(46, 230, 200, 0); }
+}
+
+/* card motion */
+.job.is-new { animation: jobIn .5s var(--snap); }
+@keyframes jobIn {
+  0% { transform: translateY(-10px) scale(.96); opacity: 0; border-color: var(--neon); }
+  100% { transform: none; opacity: 1; }
+}
+.job.is-done { animation: jobDone .45s cubic-bezier(.55, 0, .75, .2) forwards; pointer-events: none; }
+@keyframes jobDone {
+  0% { transform: none; }
+  22% { transform: scale(1.03); background: var(--palm); border-color: var(--palm); }
+  100% { transform: translateX(70%) skewX(-12deg); opacity: 0; background: var(--palm); }
+}
+.job.is-dropped { animation: jobDrop .3s ease-in forwards; pointer-events: none; }
+@keyframes jobDrop { to { transform: translateX(-40%); opacity: 0; } }
+
+@media (hover: hover) {
+  .add-btn:hover { filter: brightness(1.1); }
+  .icon-btn:hover { color: var(--ink); border-color: rgba(255, 255, 255, .25); }
+  .tab:hover { color: var(--ink); }
+  .pick-btn:hover:not(:disabled) { background: var(--neon); color: var(--shade); }
+  .job:hover { border-color: rgba(255, 255, 255, .2); }
+  .job-done:hover { background: var(--palm); border-color: var(--palm); color: var(--shade); }
+  .job-done:hover svg { opacity: 1; transform: scale(1.1); }
+  .job--jail .job-done:hover { background: var(--siren-r); border-color: var(--siren-r); color: var(--ink); }
+  .mini-x:hover { color: var(--neon); }
+  .tray-btn:hover { background: rgba(255, 255, 255, .1); }
+  .job--tomorrow .job-done:hover { background: var(--dusk); border-color: var(--dusk); color: var(--shade); }
+  .big-strip:hover { background: rgba(255, 209, 102, .14); }
+  .big-plan:hover { filter: brightness(1.08); }
+  .preps li:not(.is-done) .prep-done:hover { background: rgba(255, 209, 102, .16); }
+  .prep-form button:hover { background: rgba(255, 209, 102, .18); }
+  .link-btn:hover { color: var(--ink); }
+}
+
+/* empty states */
+.empty {
+  margin: 16px;
+  padding: 24px 20px;
+  border: 1.5px dashed rgba(255, 255, 255, .14);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.empty > svg { flex: none; width: 52px; height: 52px; color: var(--neon); }
+.empty--jail > svg { color: var(--palm); }
+.empty--tomorrow > svg { color: var(--dusk-ink); }
+.empty h3 { margin: 0 0 6px; font: 900 28px/1 var(--font-display); text-transform: uppercase; }
+.empty p { margin: 0; color: var(--smog); max-width: 42ch; }
+.sweep { transform-origin: 24px 24px; animation: sweep 4s linear infinite; }
+@keyframes sweep { to { transform: rotate(360deg); } }
+
+/* ───────────────────────── intel ───────────────────────── */
+.rates { margin: 12px 0 0; }
+.rates > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.rates dt { font: 600 15px/1.2 var(--font-hud); letter-spacing: .08em; text-transform: uppercase; color: var(--smog); }
+.rates dd { margin: 0; font: 900 26px/1 var(--font-display); color: var(--cash); font-variant-numeric: tabular-nums; }
+.rates .rate--gold dt { color: var(--gold); }
+.rates .rate--gold dd { color: var(--gold); }
+.rates .rate--jail dt { color: #ff8a96; }
+.intel-note { margin: 12px 0 0; font-size: 15px; color: var(--smog); }
+.intel h3 { margin: 22px 0 10px; }
+.ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.ladder li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, .025);
+  font: 700 15px/1 var(--font-hud);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.ladder li span:last-child { font-variant-numeric: tabular-nums; }
+.ladder li.is-done { color: var(--smog); }
+.ladder li.is-current { background: var(--ink); color: var(--shade); }
+.ladder li.is-next { color: var(--ink); box-shadow: inset 0 0 0 1px rgba(255, 61, 127, .5); }
+
+/* ───────────────────────── footer ───────────────────────── */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px 24px;
+  padding-top: 4px;
+  color: var(--dim);
+  font-size: 14px;
+}
+.devtools summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.devtools p { margin: 0 0 10px; }
+.devtools-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  font: 700 14px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.btn--danger { border-color: rgba(255, 51, 73, .55); color: #ff6b7a; background: rgba(255, 51, 73, .06); }
+.btn--solid-danger { border: 0; background: var(--siren-r); color: var(--ink); }
+.backup { display: flex; flex-wrap: wrap; gap: 8px; }
+.clock-note { font: 600 13px/1 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ───────────────────────── toast, floaters, promo ───────────────────────── */
+.toast-zone {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(480px, 100%);
+  padding: 12px 12px 12px 16px;
+  background: rgba(24, 18, 34, .97);
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 18px 50px -10px rgba(0, 0, 0, .8);
+  animation: toastIn .32s var(--snap);
+}
+.toast.is-out { animation: toastOut .2s ease-in forwards; }
+@keyframes toastIn { from { transform: translateY(16px) scale(.96); opacity: 0; } }
+@keyframes toastOut { to { transform: translateY(10px); opacity: 0; } }
+.toast-msg { font: 700 16px/1.2 var(--font-hud); letter-spacing: .06em; text-transform: uppercase; }
+.toast-amt { font: 900 24px/1 var(--font-display); color: var(--cash); white-space: nowrap; }
+.toast-action {
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: var(--neon);
+  font: 800 15px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.floater {
+  position: fixed;
+  z-index: 55;
+  pointer-events: none;
+  font: 900 34px/1 var(--font-display);
+  color: var(--cash);
+  text-shadow: -2px -2px 0 var(--shade), 2px -2px 0 var(--shade), -2px 2px 0 var(--shade), 2px 2px 0 var(--shade), 0 4px 0 var(--shade);
+  transform: translate(-50%, -50%);
+  animation: floatUp 1s var(--glide) forwards;
+}
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.5); }
+  15% { opacity: 1; transform: translate(-50%, -90%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -280%) scale(1); }
+}
+.promo {
+  position: fixed;
+  left: 50%;
+  top: calc(78px + env(safe-area-inset-top, 0px));
+  z-index: 45;
+  width: min(420px, calc(100% - 32px));
+  padding: 14px 18px 16px;
+  background: linear-gradient(100deg, var(--neon), var(--flare));
+  color: var(--shade);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+  transform: translate(-50%, -24px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .4s var(--snap), opacity .25s;
+}
+.promo.is-on { transform: translate(-50%, 0); opacity: 1; }
+.promo .eyebrow { color: rgba(5, 4, 10, .72); }
+.promo strong { display: block; font: 900 40px/.9 var(--font-display); text-transform: uppercase; }
+.promo span { display: block; margin-top: 6px; font: 700 13px/1.2 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ───────────────────────── heist overlay ───────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
+  background: rgba(5, 4, 10, 0);
+  cursor: pointer;
+  transition: background .35s;
+}
+.overlay.is-on { background: rgba(5, 4, 10, .84); }
+.overlay::before, .overlay::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 13vh;
+  background: var(--shade);
+  transform: scaleY(0);
+  transition: transform .45s cubic-bezier(.7, 0, .2, 1);
+}
+.overlay::before { top: 0; transform-origin: top; }
+.overlay::after { bottom: 0; transform-origin: bottom; }
+.overlay.is-on::before, .overlay.is-on::after { transform: scaleY(1); }
+.ov-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 50% at 50% 50%, rgba(255, 209, 102, .55), transparent 70%);
+  opacity: 0;
+}
+.overlay.is-on .ov-flash { animation: flash .9s .38s ease-out; }
+@keyframes flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
+.ov-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.ov-kicker {
+  font: 800 clamp(14px, 3.6vw, 22px)/1 var(--font-hud);
+  letter-spacing: .42em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0;
+}
+.ov-stamp-wrap { filter: drop-shadow(7px 9px 0 rgba(255, 61, 127, .9)); }
+.ov-stamp {
+  display: block;
+  font: 900 clamp(76px, 21vw, 232px)/.82 var(--font-display);
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #fff4c8 8%, var(--gold) 48%, var(--flare) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 3px var(--shade);
+  opacity: 0;
+}
+.ov-sub {
+  font: 700 clamp(15px, 3.6vw, 22px)/1.3 var(--font-hud);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0;
+}
+.ov-sub b { color: var(--cash); }
+.ov-promo { color: var(--neon); }
+.ov-hint {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: calc(4.5vh + env(safe-area-inset-bottom, 0px));
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.overlay.is-on .ov-stamp { animation: stamp 3.4s cubic-bezier(.1, .9, .2, 1) .15s forwards; }
+.overlay.is-on .ov-kicker { animation: rise .45s .55s var(--glide) forwards; }
+.overlay.is-on .ov-sub { animation: rise .45s .75s var(--glide) forwards; }
+@keyframes stamp {
+  0% { opacity: 0; transform: scale(2.8) rotate(-16deg); }
+  11% { opacity: 1; transform: scale(.93) rotate(-5deg); }
+  17% { transform: scale(1.05) rotate(-6deg); }
+  23% { transform: scale(1) rotate(-6deg); }
+  88% { opacity: 1; transform: scale(1.07) rotate(-4deg); }
+  100% { opacity: .9; transform: scale(1.08) rotate(-4deg); }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+body.is-shake .wrap { animation: shake .4s; }
+@keyframes shake {
+  20% { transform: translate(-6px, 3px); }
+  40% { transform: translate(5px, -4px); }
+  60% { transform: translate(-4px, 2px); }
+  80% { transform: translate(3px, -1px); }
+}
+.fx { position: fixed; inset: 0; z-index: 61; width: 100%; height: 100%; pointer-events: none; }
+
+/* ───────────────────────── big score celebration ───────────────────────── */
+.boss {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: hidden;
+  text-align: center;
+  background: rgba(5, 4, 10, 0);
+  cursor: pointer;
+  transition: background .15s;
+}
+.boss.is-on { background: rgba(5, 4, 10, .96); }
+.boss-flash { position: absolute; inset: 0; z-index: 3; background: #fffbe8; opacity: 0; pointer-events: none; }
+.boss.is-on .boss-flash { animation: bossFlash .55s ease-out; }
+@keyframes bossFlash { 0% { opacity: .95; } 100% { opacity: 0; } }
+.boss-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 240vmax;
+  height: 240vmax;
+  margin: -120vmax 0 0 -120vmax;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 209, 102, .2) 0deg 8deg, transparent 8deg 16deg);
+  -webkit-mask: radial-gradient(circle, #000 0%, transparent 32%);
+  mask: radial-gradient(circle, #000 0%, transparent 32%);
+  opacity: 0;
+}
+.boss-glow { position: absolute; inset: 0; background: radial-gradient(45% 40% at 50% 50%, rgba(255, 61, 127, .28), transparent 70%); opacity: 0; }
+.boss.is-on .boss-rays { animation: fadeIn .8s .3s forwards, raysSpin 40s linear infinite; }
+.boss.is-on .boss-glow { animation: fadeIn .8s .3s forwards; }
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes raysSpin { to { transform: rotate(360deg); } }
+.boss-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 100%; }
+.boss.is-shaking .boss-inner { animation: shake .35s; }
+.boss-kicker {
+  font: 800 clamp(14px, 3.6vw, 22px)/1 var(--font-hud);
+  letter-spacing: .4em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0;
+}
+.boss-stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 4px 0;
+  transform: rotate(-5deg);
+  filter: drop-shadow(8px 10px 0 rgba(255, 61, 127, .9));
+}
+.boss-stamp span {
+  display: block;
+  font: 900 clamp(64px, min(25vw, 24vh), 270px)/.8 var(--font-display);
+  text-transform: uppercase;
+  white-space: nowrap;
+  -webkit-text-stroke: 3px var(--shade);
+  opacity: 0;
+}
+.boss-stamp .l1 { color: var(--ink); }
+.boss-stamp .l2 {
+  background: linear-gradient(180deg, #fff4c8 8%, var(--gold) 48%, var(--flare) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.boss.is-on .boss-stamp .l1 { animation: slam .5s .5s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+.boss.is-on .boss-stamp .l2 { animation: slam .5s .85s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+@keyframes slam {
+  0% { opacity: 0; transform: scale(3.2); }
+  60% { opacity: 1; transform: scale(.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.boss-pay {
+  font: 900 clamp(44px, min(14vw, 12vh), 128px)/.9 var(--font-display);
+  color: var(--cash);
+  font-variant-numeric: tabular-nums;
+  text-shadow: -3px -3px 0 var(--shade), 3px -3px 0 var(--shade), -3px 3px 0 var(--shade), 3px 3px 0 var(--shade), 0 6px 0 var(--shade);
+  opacity: 0;
+}
+.boss-what {
+  max-width: 30ch;
+  font: 700 clamp(17px, 4.2vw, 24px)/1.3 var(--font-body);
+  overflow-wrap: anywhere;
+  text-decoration: line-through;
+  text-decoration-color: var(--gold);
+  text-decoration-thickness: 3px;
+  opacity: 0;
+}
+.boss-meta {
+  font: 700 clamp(13px, 3.2vw, 18px)/1.4 var(--font-hud);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--smog);
+  opacity: 0;
+}
+.boss-meta b { color: var(--cash); }
+.boss-meta .promo-line { display: block; color: var(--neon); }
+.boss.is-on .boss-kicker { animation: rise .45s .3s var(--glide) forwards; }
+.boss.is-on .boss-pay { animation: rise .4s 1.25s var(--glide) forwards; }
+.boss.is-on .boss-what { animation: rise .45s 2.4s var(--glide) forwards; }
+.boss.is-on .boss-meta { animation: rise .45s 2.6s var(--glide) forwards; }
+.boss-hint {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: calc(4.5vh + env(safe-area-inset-bottom, 0px));
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--dim);
+  opacity: 0;
+}
+.boss.is-on .boss-hint { animation: fadeIn .4s 1.6s forwards; }
+
+/* ───────────────────────── nuke dialog ───────────────────────── */
+.modal {
+  width: min(440px, calc(100% - 32px));
+  padding: 22px;
+  border: 1px solid rgba(255, 51, 73, .45);
+  background: var(--asphalt);
+  color: var(--ink);
+}
+.modal::backdrop { background: rgba(5, 4, 10, .78); }
+.modal h2 { margin: 0 0 10px; font: 900 36px/.9 var(--font-display); text-transform: uppercase; }
+.modal p { margin: 0; color: var(--smog); }
+.modal .eyebrow { color: #ff6b7a; }
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* ───────────────────────── wider screens ───────────────────────── */
+@media (min-width: 720px) {
+  .wrap { padding-top: 22px; gap: 20px; }
+  .hero { min-height: 260px; padding: 28px 30px; }
+  .hero-tag { font-size: 18px; }
+  .panel { padding: 22px; }
+  .board { padding: 0; }
+  .board-head { padding: 14px 20px 0; }
+  .composer { padding: 14px 20px 0; }
+  .board-bar { padding: 12px 20px 0; }
+  .jobs { padding: 12px 20px 22px; gap: 10px; }
+  .empty { margin: 20px; }
+  .big-strip { width: calc(100% - 40px); margin: 0 20px 20px; }
+  .big-inner { padding: 22px; }
+  .job { padding: 10px 16px 10px 10px; column-gap: 14px; }
+  .siren { margin: -10px -16px 8px -10px; }
+  .job-done { width: 48px; height: 48px; }
+  .job-text { font-size: 17px; }
+  .pay { font-size: 27px; }
+}
+@media (min-width: 980px) {
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 20px;
+    align-items: start;
+  }
+  .board { grid-column: 1; grid-row: 1; min-height: 560px; }
+  .side { display: flex; flex-direction: column; gap: 20px; grid-column: 2; grid-row: 1; }
+  .big-strip { display: none; }
+  .hold-btn { font-size: 22px; }
+}
+/* phones: squeeze the chrome so today's jobs sit near the top of the screen */
+@media (max-width: 719px) {
+  .hud-inner { padding: 7px 16px; }
+  .rank-badge { width: 34px; height: 38px; font-size: 19px; }
+  .rank-name { font-size: 14px; }
+  .rank-text { gap: 4px; }
+  .cash { font-size: clamp(26px, 7.4vw, 32px); }
+  .icon-btn { width: 36px; height: 36px; }
+  .wrap { padding-top: 10px; gap: 12px; }
+  .layout { gap: 12px; }
+  .hero {
+    min-height: 0;
+    padding: 12px 14px 14px;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+  }
+  .hero-eyebrow { padding: 4px 7px; font-size: 11px; }
+  .hero h1 { margin-top: 7px; font-size: clamp(38px, 11vw, 48px); }
+  .hero-tag { display: none; }
+  .board-head { padding: 4px 12px 0; }
+  .tabs { gap: 16px; }
+  .tab { gap: 6px; padding: 8px 0 10px; font-size: 22px; }
+  .count { min-width: 20px; padding: 3px 5px; font-size: 12px; }
+  .composer { padding: 10px 12px 0; }
+  .dock-row { padding: 4px; }
+  .board-bar { padding: 8px 12px 0; }
+  .jobs { padding: 8px 12px 12px; }
+  .job { column-gap: 8px; padding-right: 10px; }
+  .empty { margin: 12px; padding: 16px 14px; gap: 14px; }
+  .empty > svg { width: 40px; height: 40px; }
+  .empty h3 { font-size: 22px; }
+  .empty p { font-size: 15px; }
+  .big-strip { width: calc(100% - 24px); margin: 0 12px 12px; }
+}
+@media (max-width: 719px) and (max-height: 720px) {
+  .hero { padding: 9px 12px 11px; }
+  .hero h1 { margin-top: 5px; font-size: 34px; }
+  .hero-eyebrow { font-size: 10px; }
+}
+@media (max-width: 380px) {
+  .rank-next { display: none; }
+  .tabs { gap: 12px; }
+  .tab { font-size: 20px; }
+  .job { column-gap: 8px; }
+  .job-done { width: 40px; height: 40px; }
+  .job-done svg { width: 20px; height: 20px; }
+  .pay { font-size: 22px; }
+  .add-btn { padding: 0 14px 0 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .overlay.is-on .ov-stamp, .overlay.is-on .ov-kicker, .overlay.is-on .ov-sub { opacity: 1; animation: none !important; transform: rotate(-5deg); }
+  .overlay.is-on .ov-kicker, .overlay.is-on .ov-sub { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-inner">
+    <div class="rank">
+      <div class="rank-badge" id="rank-badge" aria-hidden="true">1</div>
+      <div class="rank-text">
+        <span class="rank-name" id="rank-name">Street Rookie</span>
+        <span class="rank-bar" aria-hidden="true"><i id="rank-bar"></i></span>
+        <span class="rank-next" id="rank-next">$200 to Corner Hustler</span>
+      </div>
+    </div>
+    <div class="stash">
+      <div class="stash-col">
+        <span class="sr-only">Cash stash</span>
+        <span class="cash" id="total-cash">$0</span>
+        <span class="stars" id="stars" role="img" aria-label="Heat level 0 of 5"></span>
+      </div>
+      <button class="icon-btn" id="mute-btn" type="button" aria-pressed="false" aria-label="Mute sound"></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero" aria-labelledby="board-title">
+    <canvas class="hero-sky" id="hero-sky" aria-hidden="true"></canvas>
+    <span class="hero-eyebrow"><span class="live-dot" aria-hidden="true"></span><span id="hero-date">Today</span></span>
+    <h1 id="board-title">Mission <span class="grad">Board</span></h1>
+    <p class="hero-tag">Every job pays. Even the tiny ones.</p>
+  </section>
+
+  <div class="layout">
+    <div class="side">
+      <section class="big" id="big" aria-labelledby="big-title">
+        <div class="big-inner">
+          <div class="big-head">
+            <div>
+              <p class="eyebrow">One hard job · no timer</p>
+              <h2 class="panel-title" id="big-title">The Big Score</h2>
+            </div>
+            <div class="big-pay"><small>Pays</small><b>$500</b></div>
+          </div>
+
+          <div class="big-empty" id="big-empty">
+            <p class="big-pitch">Got a job you keep dodging? Make it the big score. Break it into tiny prep steps that pay as you go, then cash in big.</p>
+            <form class="big-form" id="big-form" autocomplete="off">
+              <label class="sr-only" for="big-input">Your big score</label>
+              <input type="text" id="big-input" maxlength="140" enterkeyhint="done" placeholder="e.g. do my tax return">
+              <button type="submit" class="big-plan">Plan it</button>
+            </form>
+          </div>
+
+          <div class="big-active" id="big-active" hidden>
+            <p class="big-text" id="big-text"></p>
+            <div class="preps-head">
+              <p class="eyebrow">Prep jobs <b id="prep-count">0/0</b></p>
+              <span class="prep-pay">+$25 each</span>
+            </div>
+            <ul class="preps" id="preps" aria-label="Prep jobs"></ul>
+            <form class="prep-form" id="prep-form" autocomplete="off">
+              <label class="sr-only" for="prep-input">Add a prep step</label>
+              <input type="text" id="prep-input" maxlength="100" enterkeyhint="done" placeholder="Add a tiny first step">
+              <button type="submit" aria-label="Add prep step">+</button>
+            </form>
+            <div class="hold-wrap">
+              <button class="hold-btn" id="hold-btn" type="button" aria-describedby="hold-hint">
+                <span class="hold-fill" aria-hidden="true"></span>
+                <span class="hold-label" id="hold-label">Hold to cash in $500</span>
+                <span class="hold-label-top" id="hold-label-top" aria-hidden="true">Hold to cash in $500</span>
+              </button>
+              <p class="hold-hint" id="hold-hint">Did the big one? Press and hold for 2 seconds.</p>
+            </div>
+            <div class="big-foot">
+              <span id="big-since"></span>
+              <button class="link-btn" id="big-cancel" type="button">Call it off</button>
+            </div>
+          </div>
+
+          <div class="trophies" id="trophies" hidden>
+            <p class="eyebrow">Trophy wall · <b id="trophy-count">0</b> pulled off</p>
+            <ul class="trophy-list" id="trophy-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel heist" aria-labelledby="heist-title">
+        <div class="heist-head">
+          <div>
+            <p class="eyebrow">Today's heist · 5 wins</p>
+            <h2 class="panel-title" id="heist-title">Gangsta Credit</h2>
+          </div>
+          <div class="heist-count" aria-live="polite"><span id="heist-now">0</span><small>/5</small></div>
+        </div>
+        <ol class="slots" id="slots" aria-label="Heist progress"></ol>
+        <ul class="banked" id="completed-list" aria-label="Banked wins"></ul>
+        <p class="banked-empty" id="banked-empty">Bank 5 wins to pull off the heist.</p>
+        <p class="lifetime">
+          <span>Lifetime <b id="wins-counter">0</b> wins</span>
+          <span><b id="heist-total">0</b> heists</span>
+          <span><b id="big-total">0</b> big scores</span>
+        </p>
+      </section>
+
+      <section class="panel intel" aria-labelledby="intel-title">
+        <p class="eyebrow">The rules</p>
+        <h2 class="panel-title" id="intel-title">Pay rates</h2>
+        <dl class="rates">
+          <div><dt>Same day</dt><dd>$50</dd></div>
+          <div><dt>Day 1–4</dt><dd>$40</dd></div>
+          <div class="rate--gold"><dt>Day 5–6 · last call</dt><dd>$100</dd></div>
+          <div class="rate--jail"><dt>Day 7+ · jail</dt><dd>$50</dd></div>
+          <div class="rate--gold"><dt>Big score prep step</dt><dd>$25</dd></div>
+          <div class="rate--gold"><dt>The big score</dt><dd>$500</dd></div>
+        </dl>
+        <p class="intel-note">At day 14 the Five-0 come knocking. Every 5 wins scores a heist. Tap a job's stars to raise its wanted level and jump it up the list; stars cool off at 7 AM. Tomorrow's jobs land at 7 AM and start fresh. The big score never ages.</p>
+        <h3 class="eyebrow">Rank ladder</h3>
+        <ol class="ladder" id="ladder"></ol>
+      </section>
+    </div>
+
+    <section class="panel board" aria-label="Jobs">
+      <div class="board-head">
+        <div class="tabs" role="tablist" aria-label="Job lists">
+          <button class="tab" id="tab-active" role="tab" type="button" aria-selected="true" aria-controls="active-list">Today <span class="count" id="count-active">0</span></button>
+          <button class="tab" id="tab-tomorrow" role="tab" type="button" aria-selected="false" aria-controls="tomorrow-list" tabindex="-1">Tomorrow <span class="count" id="count-tomorrow">0</span></button>
+          <button class="tab" id="tab-jail" role="tab" type="button" aria-selected="false" aria-controls="jail-list" tabindex="-1">Jail <span class="count" id="count-jail">0</span></button>
+        </div>
+      </div>
+
+      <form class="composer" id="mission-form" autocomplete="off">
+        <label class="sr-only" for="mission-input" id="mission-label">New job for today</label>
+        <div class="dock-row">
+          <input type="text" id="mission-input" maxlength="140" enterkeyhint="done" placeholder="e.g. take meds">
+          <button type="submit" class="add-btn" id="add-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Add
+          </button>
+        </div>
+      </form>
+
+      <div class="board-bar" id="board-bar">
+        <span class="board-bar-text" id="board-bar-text"></span>
+        <button class="pick-btn" id="pick-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+          Pick for me
+        </button>
+      </div>
+
+      <ul class="jobs" id="active-list" role="tabpanel" aria-labelledby="tab-active"></ul>
+      <div class="empty" id="empty-state" hidden>
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="24" cy="24" r="20"/><circle cx="24" cy="24" r="11" opacity=".45"/><g class="sweep"><path d="M24 24L38 11" stroke-linecap="round"/></g><circle cx="31" cy="30" r="2.8" fill="currentColor" stroke="none"/></svg>
+        <div>
+          <h3>Board's clear</h3>
+          <p>Add a job above. Tiny ones count: "drink water" pays $50 too.</p>
+        </div>
+      </div>
+
+      <ul class="jobs" id="tomorrow-list" role="tabpanel" aria-labelledby="tab-tomorrow" hidden></ul>
+      <div class="empty empty--tomorrow" id="tomorrow-empty-state" hidden>
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path d="M38 28.5A15 15 0 0119.5 10a15 15 0 1018.5 18.5z"/><path d="M33 8v6M30 11h6" stroke-linecap="round"/></svg>
+        <div>
+          <h3>Nothing lined up</h3>
+          <p>Add jobs for tomorrow. They land on today's board at 7 AM.</p>
+        </div>
+      </div>
+
+      <ul class="jobs" id="jail-list" role="tabpanel" aria-labelledby="tab-jail" hidden></ul>
+      <div class="empty empty--jail" id="jail-empty-state" hidden>
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><rect x="10" y="21" width="28" height="20" rx="2"/><path d="M16 21v-6a8 8 0 0115.5-2.8" stroke-linecap="round"/><circle cx="24" cy="31" r="2.6" fill="currentColor" stroke="none"/></svg>
+        <div>
+          <h3>Nobody's locked up</h3>
+          <p>Jobs land here after 7 days. Break them out for $50 and lose the heat.</p>
+        </div>
+      </div>
+
+      <button class="big-strip" id="big-strip" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>
+        <span class="big-strip-text"><small>Big score</small><span id="big-strip-text"></span></span>
+        <span class="big-strip-meta" id="big-strip-meta"></span>
+      </button>
+    </section>
+  </div>
+
+  <footer class="footer">
+    <details class="devtools">
+      <summary>Dev tools</summary>
+      <p>Test the jail and cash system without waiting.</p>
+      <div class="devtools-row">
+        <button class="btn" id="skip-day" type="button">Skip 1 day</button>
+        <button class="btn" id="reset-clock" type="button">Reset clock</button>
+        <span class="clock-note" id="clock-note">Real time</span>
+      </div>
+    </details>
+    <div class="backup">
+      <button class="btn" id="export-btn" type="button">Save backup</button>
+      <button class="btn" id="import-btn" type="button">Load backup</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+      <button class="btn btn--danger" id="clear-all-btn" type="button">Nuke data</button>
+    </div>
+  </footer>
+</main>
+
+<div class="toast-zone" id="toast-zone" aria-live="polite"></div>
+<div class="sr-only" id="announcer" aria-live="assertive"></div>
+
+<div class="promo" id="promo" aria-hidden="true">
+  <p class="eyebrow">Promoted</p>
+  <strong id="promo-rank">Corner Hustler</strong>
+  <span id="promo-next"></span>
+</div>
+
+<div class="overlay" id="gta-overlay" hidden aria-hidden="true">
+  <div class="ov-flash"></div>
+  <div class="ov-inner">
+    <div class="ov-kicker">Heist scored</div>
+    <div class="ov-stamp-wrap"><span class="ov-stamp" id="gta-text-element">Gangsta!!!</span></div>
+    <div class="ov-sub" id="ov-sub"></div>
+  </div>
+  <div class="ov-hint">Tap to continue</div>
+</div>
+<div class="boss" id="boss-overlay" hidden aria-hidden="true">
+  <div class="boss-rays"></div>
+  <div class="boss-glow"></div>
+  <div class="boss-flash"></div>
+  <div class="boss-inner">
+    <div class="boss-kicker">The big score · pulled off</div>
+    <div class="boss-stamp" aria-hidden="true"><span class="l1">Boss</span><span class="l2">Moves!!!</span></div>
+    <div class="boss-pay" id="boss-pay">+$0</div>
+    <div class="boss-what" id="boss-what"></div>
+    <div class="boss-meta" id="boss-meta"></div>
+  </div>
+  <div class="boss-hint">Tap to continue</div>
+</div>
+<canvas class="fx" id="fx" aria-hidden="true"></canvas>
+
+<dialog class="modal" id="nuke-dialog" aria-labelledby="nuke-title">
+  <form method="dialog">
+    <p class="eyebrow">Danger zone</p>
+    <h2 id="nuke-title">Nuke everything?</h2>
+    <p>This wipes every job, your cash stash, rank and heist count on this device. There's no undo.</p>
+    <div class="modal-actions">
+      <button class="btn" value="cancel" type="submit" autofocus>Keep my stuff</button>
+      <button class="btn btn--solid-danger" value="nuke" type="submit">Nuke it</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── Config ─────────────────────────────────────────────────────────────
+  // Optional: your own heist jingle, sitting next to this file. "#" must be
+  // written as %23 in a URL, otherwise the browser treats it as a page anchor
+  // and the file never loads. If it can't load, a built-in jingle plays.
+  const CUSTOM_JINGLE_URL = 'Mission_passed_jingl_%232-1783759697834.mp3';
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const HEIST_SIZE = 5;
+  const BIG_PAY = 500;
+  const PREP_PAY = 25;
+  const MAX_PREPS = 8;
+  const HOLD_MS = 2000;
+  const MORNING_HOUR = 7; // tomorrow's jobs land on today's board at 7 AM
+  const MAX_HEAT = 5;     // per-job wanted level, like the stars when the cops are after you
+  const RANKS = [
+    { min: 0, name: 'Street Rookie' },
+    { min: 200, name: 'Corner Hustler' },
+    { min: 500, name: 'Wheelman' },
+    { min: 1000, name: 'Enforcer' },
+    { min: 2000, name: 'Shot Caller' },
+    { min: 4000, name: 'Underboss' },
+    { min: 8000, name: 'Kingpin' },
+    { min: 15000, name: 'City Legend' },
+  ];
+  const HYPE = [
+    'Clean getaway', 'Smooth operator', 'Easy money', "That's how it's done",
+    'Too easy', 'Pro move', 'Cash in hand', 'Another one', 'No sweat', 'Big moves',
+  ];
+  const PLACEHOLDER_IDEAS = [
+    'take meds', 'answer that one email', 'drink a glass of water', 'five-minute tidy',
+    'book the dentist', 'put a wash on', 'step outside for 2 minutes', 'text back',
+  ];
+  const STARTER_JOBS = [
+    'Tap the circle to finish this job and get paid',
+    'Tap the stars to make a job urgent. More stars, higher up the list',
+    'Tap this text to push it to tomorrow or drop it',
+    "Add one tiny job of your own (even 'drink water' counts)",
+  ];
+
+  // ── Storage (keys match the original version, so existing progress carries over) ──
+  const store = {
+    get(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode etc. */ }
+    },
+    has(key) {
+      try { return localStorage.getItem(key) !== null; } catch { return false; }
+    },
+  };
+  const toInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; };
+
+  let missions = (Array.isArray(store.get('gta_missions', [])) ? store.get('gta_missions', []) : [])
+    .filter((m) => m && typeof m.text === 'string' && Number.isFinite(m.id) && Number.isFinite(m.createdAt));
+  let visibleCompletedMissions = (Array.isArray(store.get('gta_visible_completed', [])) ? store.get('gta_visible_completed', []) : [])
+    .filter((t) => typeof t === 'string');
+  let totalWinsCount = toInt(store.get('gta_wins', 0));
+  let totalCash = toInt(store.get('gta_cash', 0));
+  let simulatedTimeOffset = toInt(store.get('gta_time_offset', 0));
+  let heistsScored = toInt(store.get('gta_heists', 0));
+  let muted = store.get('gta_muted', false) === true;
+
+  function cleanBig(b) {
+    if (!b || typeof b.text !== 'string') return null;
+    return {
+      id: Number.isFinite(b.id) ? b.id : Date.now(),
+      text: b.text,
+      createdAt: Number.isFinite(b.createdAt) ? b.createdAt : Date.now(),
+      preps: (Array.isArray(b.preps) ? b.preps : [])
+        .filter((pr) => pr && typeof pr.text === 'string')
+        .map((pr, i) => ({ id: Number.isFinite(pr.id) ? pr.id : Date.now() + i, text: pr.text, done: pr.done === true })),
+    };
+  }
+  let bigScore = cleanBig(store.get('gta_big_score', null));
+  let tomorrowMissions = (Array.isArray(store.get('gta_tomorrow', [])) ? store.get('gta_tomorrow', []) : [])
+    .filter((m) => m && typeof m.text === 'string' && Number.isFinite(m.id) && Number.isFinite(m.startsAt));
+  let trophies = (Array.isArray(store.get('gta_big_trophies', [])) ? store.get('gta_big_trophies', []) : [])
+    .filter((t) => t && typeof t.text === 'string' && Number.isFinite(t.at));
+
+  // A heist that finished while the page was closed has already been paid out.
+  if (visibleCompletedMissions.length >= HEIST_SIZE) visibleCompletedMissions = [];
+
+  let currentTab = 'active'; // active (today) | tomorrow | jail
+  let openTray = null;       // which job's action tray is open, e.g. "job-123"
+  let ideaIndex = 0;
+  const landedIds = new Set();
+  let pickedId = null;
+  let justAddedId = null;
+  let lastBankedCount = visibleCompletedMissions.length;
+  let cashAnimating = false;
+
+  // ── DOM ────────────────────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const form = $('mission-form');
+  const input = $('mission-input');
+  const activeListEl = $('active-list');
+  const jailListEl = $('jail-list');
+  const emptyStateEl = $('empty-state');
+  const jailEmptyStateEl = $('jail-empty-state');
+  const completedListEl = $('completed-list');
+  const bankedEmptyEl = $('banked-empty');
+  const slotsEl = $('slots');
+  const cashEl = $('total-cash');
+  const starsEl = $('stars');
+  const tabActive = $('tab-active');
+  const tabJail = $('tab-jail');
+  const tabTomorrow = $('tab-tomorrow');
+  const tomorrowListEl = $('tomorrow-list');
+  const tomorrowEmptyEl = $('tomorrow-empty-state');
+  const TAB_ORDER = ['active', 'tomorrow', 'jail'];
+  const TAB_EL = { active: tabActive, tomorrow: tabTomorrow, jail: tabJail };
+  const pickBtn = $('pick-btn');
+  const muteBtn = $('mute-btn');
+  const overlay = $('gta-overlay');
+  const toastZone = $('toast-zone');
+  const promo = $('promo');
+  const nukeDialog = $('nuke-dialog');
+
+  const ICON = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/></svg>',
+    cash: '<svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="26" height="13" rx="1.5"/><circle cx="16" cy="14.5" r="3"/><path d="M6 4.5h20M9 1.5h14" stroke-linecap="round"/></svg>',
+    star: '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.75 5.9 6.45.75-4.78 4.4 1.28 6.37L12 17.05 6.3 20.22l1.28-6.37L2.8 9.45l6.45-.75z"/></svg>',
+    soundOn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg>',
+    moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/></svg>',
+    sunrise: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V6M6.5 11.5L12 6l5.5 5.5"/></svg>',
+    crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M7 4h10v5a5 5 0 01-10 0V4z"/><path d="M7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3M12 14v3M8 20h8M9.5 17h5"/></svg>',
+    soundOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>',
+  };
+
+  // Small DOM builder. User text only ever goes in as text nodes.
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'icon') el.innerHTML = v; // static markup from ICON only
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+    return el;
+  }
+  const iconEl = (svg) => { const t = document.createElement('template'); t.innerHTML = svg; return t.content.firstChild; };
+  const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
+  const shortDate = (t) => new Date(t).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  // ── Time & rules ──────────────────────────────────────────────────────
+  const now = () => Date.now() + simulatedTimeOffset;
+  const calculateDaysOld = (createdAt) => Math.max(0, Math.floor((now() - createdAt) / DAY_MS));
+
+  // The next 7 AM after time t. At 1 AM that's later today; at 9 AM it's tomorrow.
+  function nextMorning(t) {
+    const d = new Date(t);
+    d.setHours(MORNING_HOUR, 0, 0, 0);
+    if (d.getTime() <= t) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+  // A job's wanted level only lasts for the day: it cools off at the next 7 AM.
+  const heatOf = (m) => (m.heat > 0 && m.heatUntil > now() ? Math.min(MAX_HEAT, m.heat) : 0);
+  // Hottest first; among equal heat, the most recently bumped wins; otherwise keep the order added.
+  const byHeat = (a, b) => (heatOf(b) - heatOf(a)) || ((heatOf(b) ? b.heatAt || 0 : 0) - (heatOf(a) ? a.heatAt || 0 : 0));
+
+  function landLabel(t) {
+    const dayStart = (x) => { const d = new Date(x); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    const diff = Math.round((dayStart(t) - dayStart(now())) / DAY_MS);
+    const time = new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const day = diff <= 0 ? 'today' : diff === 1 ? 'tomorrow' : new Date(t).toLocaleDateString('en-US', { weekday: 'short' });
+    return `${time} ${day}`;
+  }
+
+  function calculateReward(daysOld) {
+    if (daysOld === 0) return 50;
+    if (daysOld >= 1 && daysOld <= 4) return 40;
+    if (daysOld === 5 || daysOld === 6) return 100;
+    return 50; // anything broken out of jail
+  }
+
+  function rankIndex(cash) {
+    let idx = 0;
+    RANKS.forEach((r, i) => { if (cash >= r.min) idx = i; });
+    return idx;
+  }
+
+  function saveData() {
+    store.set('gta_missions', missions);
+    store.set('gta_visible_completed', visibleCompletedMissions);
+    store.set('gta_wins', totalWinsCount);
+    store.set('gta_cash', totalCash);
+    store.set('gta_time_offset', simulatedTimeOffset);
+    store.set('gta_heists', heistsScored);
+    store.set('gta_big_score', bigScore);
+    store.set('gta_big_trophies', trophies);
+    store.set('gta_tomorrow', tomorrowMissions);
+  }
+
+  // First visit: three starter jobs that teach the moves.
+  if (!store.has('gta_missions') && !store.has('gta_seeded')) {
+    const t = now();
+    missions = STARTER_JOBS.map((text, i) => ({ id: t + i, text, createdAt: t }));
+    store.set('gta_seeded', true);
+    saveData();
+  }
+
+  // ── Sound (synthesised in the browser, so there's nothing to license) ──
+  const sfx = (() => {
+    let ctx = null;
+    let out = null;
+    function ready() {
+      if (muted) return false;
+      try {
+        if (!ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return false;
+          ctx = new AC();
+          const comp = ctx.createDynamicsCompressor();
+          out = ctx.createGain();
+          out.gain.value = 0.55;
+          out.connect(comp);
+          comp.connect(ctx.destination);
+        }
+        if (ctx.state === 'suspended') ctx.resume();
+        return true;
+      } catch { return false; }
+    }
+    function tone(freq, at, dur, opts) {
+      const o = Object.assign({ type: 'square', vol: 0.15, attack: 0.006, glide: 0, cutoff: 0 }, opts);
+      const t0 = ctx.currentTime + at;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = o.type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if (o.glide) osc.frequency.exponentialRampToValueAtTime(o.glide, t0 + dur);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(o.vol, t0 + o.attack);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      let node = osc;
+      if (o.cutoff) {
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = o.cutoff;
+        osc.connect(f);
+        node = f;
+      }
+      node.connect(gain);
+      gain.connect(out);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.05);
+    }
+    let noiseBuf = null;
+    function noise(at, dur, opts) {
+      const o = Object.assign({ vol: 0.3, type: 'lowpass', freq: 800, attack: 0.01 }, opts);
+      if (!noiseBuf) {
+        noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      const t0 = ctx.currentTime + at;
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuf;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = o.type;
+      f.frequency.value = o.freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(o.vol, t0 + o.attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(f);
+      f.connect(g);
+      g.connect(out);
+      src.start(t0);
+      src.stop(t0 + dur + 0.05);
+    }
+    const brass = (f, at, dur, vol = 0.09) => {
+      tone(f, at, dur, { type: 'sawtooth', vol, attack: 0.025, cutoff: 2400 });
+      tone(f * 1.006, at, dur, { type: 'sawtooth', vol: vol * 0.7, attack: 0.025, cutoff: 2400 });
+    };
+    return {
+      add() { if (!ready()) return; tone(660, 0, 0.09, { type: 'triangle', vol: 0.2 }); tone(990, 0.06, 0.14, { type: 'triangle', vol: 0.16 }); },
+      coin() { if (!ready()) return; tone(988, 0, 0.08, { vol: 0.1 }); tone(1319, 0.07, 0.38, { vol: 0.1 }); tone(2637, 0.07, 0.22, { type: 'sine', vol: 0.05 }); },
+      drop() { if (!ready()) return; tone(320, 0, 0.2, { type: 'sawtooth', vol: 0.08, glide: 110, cutoff: 900 }); },
+      tick() { if (!ready()) return; tone(1500, 0, 0.03, { vol: 0.045 }); },
+      // A short police "whoop" that climbs with the wanted level.
+      whoop(level) {
+        if (!ready()) return;
+        const base = 480 + level * 90;
+        tone(base, 0, 0.2, { type: 'triangle', vol: 0.14, glide: base * 2.2 });
+        if (level >= MAX_HEAT) tone(base, 0.22, 0.2, { type: 'triangle', vol: 0.14, glide: base * 2.2 });
+      },
+      sirenDown() { if (!ready()) return; tone(1300, 0, 0.45, { type: 'triangle', vol: 0.1, glide: 420 }); },
+      lock() { if (!ready()) return; tone(784, 0, 0.1, { type: 'triangle', vol: 0.18 }); tone(1175, 0.08, 0.22, { type: 'triangle', vol: 0.16 }); },
+      rankUp() {
+        if (!ready()) return;
+        [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.085, 0.22, { type: 'square', vol: 0.07, cutoff: 3000 }));
+        brass(1047, 0.34, 0.6, 0.07);
+      },
+      jingle() {
+        if (!ready()) return;
+        // An original little fanfare: pickup, hit, then a big held chord over a low thump.
+        brass(392, 0, 0.13); brass(392, 0.15, 0.13); brass(523, 0.3, 0.2);
+        brass(659, 0.54, 0.22);
+        [523, 659, 784, 1047].forEach((f) => brass(f, 0.8, 1.25, 0.07));
+        tone(98, 0.8, 0.55, { type: 'sine', vol: 0.4, glide: 40 });
+        tone(2093, 0.82, 1.1, { type: 'sine', vol: 0.035 });
+        tone(3136, 0.9, 0.9, { type: 'sine', vol: 0.02 });
+      },
+      boom() { if (!ready()) return; tone(150, 0, 0.8, { type: 'sine', vol: 0.6, glide: 36 }); noise(0, 0.45, { vol: 0.35, freq: 420 }); },
+      pop() { if (!ready()) return; noise(0, 0.3, { vol: 0.16, type: 'highpass', freq: 2200 }); tone(700 + Math.random() * 700, 0, 0.14, { type: 'triangle', vol: 0.05, glide: 260 }); },
+      // Rising tension while the big-score button is held. Returns a stop function.
+      riser(ms) {
+        if (!ready()) return () => {};
+        const t0 = ctx.currentTime;
+        const dur = ms / 1000;
+        const osc = ctx.createOscillator();
+        const f = ctx.createBiquadFilter();
+        const g = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(160, t0);
+        osc.frequency.exponentialRampToValueAtTime(880, t0 + dur);
+        f.type = 'lowpass';
+        f.frequency.setValueAtTime(500, t0);
+        f.frequency.exponentialRampToValueAtTime(4200, t0 + dur);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.11, t0 + dur);
+        osc.connect(f);
+        f.connect(g);
+        g.connect(out);
+        osc.start(t0);
+        return () => {
+          const t = ctx.currentTime;
+          g.gain.cancelScheduledValues(t);
+          g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+          osc.stop(t + 0.1);
+        };
+      },
+      bossFanfare() {
+        if (!ready()) return;
+        // Original: a rising call, a hit, then a huge major chord with a cymbal swell.
+        brass(523, 0, 0.11); brass(523, 0.13, 0.11); brass(523, 0.26, 0.11);
+        brass(698, 0.4, 0.26);
+        brass(659, 0.7, 0.18); brass(784, 0.9, 0.22);
+        noise(0.8, 0.5, { vol: 0.12, type: 'highpass', freq: 6000, attack: 0.35 });
+        [523, 659, 784, 1047, 1319].forEach((f) => brass(f, 1.15, 1.8, 0.065));
+        tone(65, 1.15, 0.9, { type: 'sine', vol: 0.55, glide: 32 });
+        noise(1.15, 1.6, { vol: 0.14, type: 'highpass', freq: 5000 });
+        [1568, 2093, 2637, 3136].forEach((f, i) => tone(f, 1.3 + i * 0.09, 0.5, { type: 'sine', vol: 0.03 }));
+      },
+    };
+  })();
+
+  let customJingle = null;
+  let customJingleState = 'none'; // none | loading | ok | missing
+  if (CUSTOM_JINGLE_URL) {
+    try {
+      customJingle = new Audio();
+      customJingle.preload = 'auto';
+      customJingleState = 'loading';
+      customJingle.addEventListener('canplaythrough', () => { customJingleState = 'ok'; }, { once: true });
+      customJingle.addEventListener('error', () => { customJingleState = 'missing'; }, { once: true });
+      customJingle.src = CUSTOM_JINGLE_URL;
+    } catch { customJingleState = 'missing'; }
+  }
+  function playHeistJingle() {
+    if (muted) return;
+    if (!customJingle || customJingleState === 'missing') { sfx.jingle(); return; }
+    try {
+      customJingle.currentTime = 0;
+      customJingle.play().catch(() => { customJingleState = 'missing'; sfx.jingle(); });
+    } catch { sfx.jingle(); }
+  }
+  function haptic(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch { /* not supported */ }
+  }
+
+  // ── Hero sky: procedural skyline, palette follows the time of day ──────
+  const SKIES = {
+    dawn:  { label: 'Dawn patrol', sky: ['#24164a', '#6a3a7a', '#e8768a', '#ffc28c'], glow: 'rgba(255,190,140,.55)', sun: ['#fff1c9', '#ffb27a'], sunY: 0.74, sunR: 1, far: '#5b3a72', near: '#170f24', palm: '#0e0918', lit: 0.12, stars: false },
+    day:   { label: 'Day shift', sky: ['#1d3b8c', '#2f74c9', '#5cc0e2', '#ffe0a8'], glow: 'rgba(255,245,210,.5)', sun: ['#ffffff', '#fff0c2'], sunY: 0.26, sunR: 0.8, far: '#3f5a92', near: '#141a33', palm: '#0c1124', lit: 0.03, stars: false },
+    dusk:  { label: 'Golden hour', sky: ['#1a0a33', '#5c1a66', '#ff3d7f', '#ffa04a'], glow: 'rgba(255,130,90,.6)', sun: ['#ffe08f', '#ff6f61'], sunY: 0.7, sunR: 1.1, far: '#4c1f5e', near: '#130b20', palm: '#0b0614', lit: 0.26, stars: false },
+    night: { label: 'Night shift', sky: ['#04030c', '#0f0b2a', '#26134a', '#4a1c5e'], glow: 'rgba(170,140,255,.22)', sun: ['#fbf6ff', '#d8ccff'], sunY: 0.24, sunR: 0.55, far: '#1d1538', near: '#07050e', palm: '#040309', lit: 0.5, stars: true },
+  };
+  function skyPhase() {
+    const forced = (location.hash || '').slice(1);
+    if (SKIES[forced]) return forced;
+    const hr = new Date(now()).getHours();
+    if (hr >= 5 && hr < 8) return 'dawn';
+    if (hr >= 8 && hr < 17) return 'day';
+    if (hr >= 17 && hr < 20) return 'dusk';
+    return 'night';
+  }
+  function seeded(a) {
+    return () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function drawSkyline(c, rnd, w, h, o) {
+    let x = -8;
+    let tallest = null;
+    while (x < w + 8) {
+      const bw = o.minW + rnd() * (o.maxW - o.minW);
+      let bh = h * (o.minH + rnd() * (o.maxH - o.minH));
+      if (o.towers && rnd() < 0.14) bh = h * (o.maxH + rnd() * 0.2);
+      const top = h - bh;
+      c.fillStyle = o.color;
+      c.fillRect(x, top, bw + 1, bh);
+      if (rnd() < 0.3) c.fillRect(x + bw * 0.3, top - 5, bw * 0.4, 5);
+      if (o.towers && bh > h * 0.5) {
+        c.fillRect(x + bw / 2 - 1, top - 16, 2, 16);
+        if (!tallest || top < tallest.y) tallest = { x: x + bw / 2, y: top - 17 };
+      }
+      if (o.windows) {
+        for (let wy = top + 6; wy < h - 6; wy += 7) {
+          for (let wx = x + 4; wx < x + bw - 5; wx += 6) {
+            if (rnd() < o.windows) {
+              c.fillStyle = rnd() < 0.86 ? `rgba(255,212,140,${0.45 + rnd() * 0.5})` : 'rgba(255,110,170,.85)';
+              c.fillRect(wx, wy, 2.5, 3.5);
+            }
+          }
+        }
+      }
+      x += bw + (rnd() < 0.2 ? rnd() * 5 : 0);
+    }
+    if (tallest) {
+      c.fillStyle = '#ff3349';
+      c.beginPath();
+      c.arc(tallest.x, tallest.y, 2, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+  function drawPalm(c, x0, y0, H, lean, color) {
+    const x1 = x0 + lean * H;
+    const y1 = y0 - H;
+    const cx = x0 + lean * H * 0.15;
+    const cy = y0 - H * 0.55;
+    const at = (t) => ({
+      x: (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * cx + t * t * x1,
+      y: (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * cy + t * t * y1,
+    });
+    c.strokeStyle = color;
+    c.fillStyle = color;
+    c.lineCap = 'round';
+    const segs = 28;
+    for (let i = 0; i < segs; i++) {
+      const p0 = at(i / segs);
+      const p1 = at((i + 1) / segs);
+      c.lineWidth = H * (0.048 - 0.026 * (i / segs));
+      c.beginPath();
+      c.moveTo(p0.x, p0.y);
+      c.lineTo(p1.x, p1.y);
+      c.stroke();
+    }
+    const angles = [-3.05, -2.7, -2.3, -1.9, -1.5, -1.1, -0.7, -0.3, 0.05];
+    angles.forEach((a, i) => {
+      const len = H * (0.34 + 0.05 * Math.sin(i * 1.7));
+      const ex = x1 + Math.cos(a) * len;
+      const ey = y1 + Math.sin(a) * len * 0.45 + len * 0.42;
+      const mx = x1 + Math.cos(a) * len * 0.55;
+      const my = y1 + Math.sin(a) * len * 0.75 - len * 0.12;
+      c.beginPath();
+      c.moveTo(x1, y1);
+      c.quadraticCurveTo(mx, my - len * 0.09, ex, ey);
+      c.quadraticCurveTo(mx, my + len * 0.06, x1, y1 + H * 0.02);
+      c.fill();
+    });
+    c.beginPath();
+    c.arc(x1, y1 + H * 0.01, H * 0.03, 0, Math.PI * 2);
+    c.fill();
+  }
+  let skyKey = '';
+  function paintSky(force) {
+    const cv = $('hero-sky');
+    const rect = cv.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width));
+    const h = Math.max(1, Math.round(rect.height));
+    const phase = skyPhase();
+    const dateTxt = shortDate(now());
+    const key = `${w}x${h}:${phase}:${dateTxt}`;
+    if (!force && key === skyKey) return;
+    skyKey = key;
+    const p = SKIES[phase];
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    const c = cv.getContext('2d');
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const rnd = seeded(1987);
+
+    const sky = c.createLinearGradient(0, 0, 0, h * 0.9);
+    p.sky.forEach((col, i) => sky.addColorStop(i / (p.sky.length - 1), col));
+    c.fillStyle = sky;
+    c.fillRect(0, 0, w, h);
+
+    if (p.stars) {
+      for (let i = 0; i < 90; i++) {
+        c.fillStyle = `rgba(255,255,255,${0.2 + rnd() * 0.6})`;
+        const s = rnd() < 0.9 ? 1 : 2;
+        c.fillRect(rnd() * w, rnd() * h * 0.6, s, s);
+      }
+    }
+
+    const sx = w * 0.72;
+    const sy = h * p.sunY;
+    const sr = Math.min(h * 0.24, 88) * p.sunR;
+    const glow = c.createRadialGradient(sx, sy, 0, sx, sy, Math.max(w, h) * 0.65);
+    glow.addColorStop(0, p.glow);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, w, h);
+    const sun = c.createLinearGradient(0, sy - sr, 0, sy + sr);
+    sun.addColorStop(0, p.sun[0]);
+    sun.addColorStop(1, p.sun[1]);
+    c.fillStyle = sun;
+    c.beginPath();
+    c.arc(sx, sy, sr, 0, Math.PI * 2);
+    c.fill();
+
+    drawSkyline(c, rnd, w, h, { color: p.far, minW: 14, maxW: 40, minH: 0.2, maxH: 0.52, towers: true, windows: 0 });
+    drawSkyline(c, rnd, w, h, { color: p.near, minW: 22, maxW: 66, minH: 0.1, maxH: 0.34, towers: false, windows: p.lit });
+
+    drawPalm(c, w * 0.035, h + 4, h * 0.98, 0.1, p.palm);
+    drawPalm(c, w * 0.955, h + 4, h * 0.9, -0.12, p.palm);
+    if (w > 640) drawPalm(c, w * 0.86, h + 4, h * 0.62, 0.06, p.palm);
+
+    $('hero-date').textContent = `${dateTxt} · ${p.label}`;
+  }
+
+  // ── Rendering ──────────────────────────────────────────────────────────
+  function renderHUD() {
+    const idx = rankIndex(totalCash);
+    const rank = RANKS[idx];
+    const next = RANKS[idx + 1];
+    $('rank-badge').textContent = String(idx + 1);
+    $('rank-name').textContent = rank.name;
+    if (next) {
+      const pct = ((totalCash - rank.min) / (next.min - rank.min)) * 100;
+      $('rank-bar').style.width = `${Math.max(3, Math.min(100, pct))}%`;
+      $('rank-next').textContent = `${money(next.min - totalCash)} to ${next.name}`;
+    } else {
+      $('rank-bar').style.width = '100%';
+      $('rank-next').textContent = 'Top of the city';
+    }
+    if (!cashAnimating) cashEl.textContent = money(totalCash);
+
+    let jailed = 0;
+    let five0 = 0;
+    missions.forEach((m) => {
+      const d = calculateDaysOld(m.createdAt);
+      if (d >= 7) jailed++;
+      if (d >= 14) five0++;
+    });
+    const heat = Math.min(5, jailed + five0);
+    starsEl.replaceChildren(...Array.from({ length: 5 }, (_, i) => {
+      const s = iconEl(ICON.star);
+      if (i < heat) s.classList.add('is-hot');
+      return s;
+    }));
+    starsEl.classList.toggle('is-flash', five0 > 0);
+    starsEl.setAttribute('aria-label', `Heat level ${heat} of 5`);
+
+    muteBtn.innerHTML = muted ? ICON.soundOff : ICON.soundOn;
+    muteBtn.setAttribute('aria-pressed', String(muted));
+    muteBtn.setAttribute('aria-label', muted ? 'Turn sound on' : 'Mute sound');
+  }
+
+  function jobEl(m) {
+    const d = calculateDaysOld(m.createdAt);
+    const reward = calculateReward(d);
+    const jail = d >= 7;
+    const five0 = d >= 14;
+    const lastCall = !jail && d >= 5;
+    const left = 7 - d;
+    const key = `job-${m.id}`;
+    const open = openTray === key;
+
+    let age;
+    if (five0) age = `Day ${d} · Five-0 inbound`;
+    else if (jail) age = `Locked up · day ${d}`;
+    else if (d === 0) age = 'New today';
+    else if (lastCall) age = left === 1 ? 'Last call · jail tomorrow' : `Last call · jail in ${left} days`;
+    else age = `Day ${d} · jail in ${left} days`;
+
+    const cls = ['job'];
+    if (jail) cls.push('job--jail');
+    if (lastCall) cls.push('job--lastcall');
+    if (d === 6) cls.push('job--final');
+    if (m.id === pickedId) cls.push('is-picked');
+    if (m.id === justAddedId || landedIds.has(m.id)) cls.push('is-new');
+    if (open) cls.push('is-open');
+    const heat = heatOf(m);
+    if (heat >= 3) cls.push('job--hot');
+    if (heat >= MAX_HEAT) cls.push('job--wanted-5');
+
+    const stars = h('button', {
+      class: 'wanted', type: 'button', 'data-act': 'heat',
+      'aria-label': `Make "${m.text}" more urgent. Wanted level ${heat} of ${MAX_HEAT}`,
+    }, Array.from({ length: MAX_HEAT }, (_, i) => {
+      const star = iconEl(ICON.star);
+      if (i < heat) star.classList.add('is-hot');
+      return star;
+    }));
+
+    const meta = h('span', { class: 'job-meta' });
+    if (jail) {
+      meta.append(iconEl(ICON.lock));
+    } else {
+      meta.append(h('span', { class: 'fuse', 'aria-hidden': 'true' },
+        Array.from({ length: 7 }, (_, i) => h('i', { class: i < left ? 'on' : null }))));
+    }
+    meta.append(h('span', { class: 'job-age' }, age));
+
+    return h('li', { class: cls.join(' '), 'data-id': String(m.id), 'data-heat': String(heat) },
+      five0 ? h('div', { class: 'siren' }, 'Five-0 inbound. Finish this now, homie!') : null,
+      h('button', {
+        class: 'job-done', type: 'button', 'data-act': 'done',
+        'aria-label': `${jail ? 'Break out' : 'Finish'} "${m.text}" for ${money(reward)}`, icon: ICON.check,
+      }),
+      h('button', { class: 'job-body', type: 'button', 'data-act': 'toggle', 'aria-expanded': String(open), 'aria-controls': `tray-${key}` },
+        h('span', { class: 'job-text' }, m.text), meta),
+      h('div', { class: 'job-side' }, h('span', { class: 'pay' }, money(reward)),
+        h('div', { class: 'heat-row' },
+          heat ? h('button', { class: 'heat-reset', type: 'button', 'data-act': 'cool', 'aria-label': `Reset stars on "${m.text}"`, icon: ICON.x }) : null,
+          stars)),
+      h('div', { class: 'job-tray', id: `tray-${key}`, hidden: !open },
+        heat ? h('button', { class: 'tray-btn', type: 'button', 'data-act': 'cool' }, iconEl(ICON.star), 'Reset stars') : null,
+        jail ? null : h('button', { class: 'tray-btn tray-btn--dusk', type: 'button', 'data-act': 'tomorrow' }, iconEl(ICON.moon), 'Push to tomorrow'),
+        h('button', { class: 'tray-btn tray-btn--danger', type: 'button', 'data-act': 'drop' }, iconEl(ICON.x), 'Drop job'),
+      ),
+    );
+  }
+
+  function tomorrowEl(m) {
+    const key = `tmr-${m.id}`;
+    const open = openTray === key;
+    const cls = ['job', 'job--tomorrow'];
+    if (m.id === justAddedId) cls.push('is-new');
+    if (open) cls.push('is-open');
+    return h('li', { class: cls.join(' '), 'data-id': String(m.id) },
+      h('button', { class: 'job-done', type: 'button', 'data-act': 'today', 'aria-label': `Move "${m.text}" to today`, icon: ICON.sunrise }),
+      h('button', { class: 'job-body', type: 'button', 'data-act': 'toggle', 'aria-expanded': String(open), 'aria-controls': `tray-${key}` },
+        h('span', { class: 'job-text' }, m.text),
+        h('span', { class: 'job-meta' }, iconEl(ICON.moon), h('span', { class: 'job-age' }, `Lands ${landLabel(m.startsAt)}`))),
+      h('span', { class: 'pay' }, money(calculateReward(0))),
+      h('div', { class: 'job-tray', id: `tray-${key}`, hidden: !open },
+        h('button', { class: 'tray-btn', type: 'button', 'data-act': 'today' }, iconEl(ICON.sunrise), 'Do it today'),
+        h('button', { class: 'tray-btn tray-btn--danger', type: 'button', 'data-act': 'drop' }, iconEl(ICON.x), 'Drop job'),
+      ),
+    );
+  }
+
+  function renderStrip() {
+    const strip = $('big-strip');
+    strip.hidden = !bigScore || currentTab !== 'active';
+    if (!bigScore) return;
+    const done = bigScore.preps.filter((pr) => pr.done).length;
+    $('big-strip-text').textContent = bigScore.text;
+    $('big-strip-meta').textContent = bigScore.preps.length ? `${done}/${bigScore.preps.length}` : money(BIG_PAY);
+    strip.setAttribute('aria-label', `Big score: ${bigScore.text}. Go to the big score`);
+  }
+
+  function renderBoard() {
+    const active = [];
+    const jail = [];
+    let five0 = false;
+    let activePay = 0;
+    let jailPay = 0;
+    missions.forEach((m) => {
+      const d = calculateDaysOld(m.createdAt);
+      if (d >= 7) { jail.push(m); jailPay += calculateReward(d); if (d >= 14) five0 = true; } else { active.push(m); activePay += calculateReward(d); }
+    });
+    const lined = tomorrowMissions.slice().sort((a, b) => a.startsAt - b.startsAt);
+    active.sort(byHeat);
+    jail.sort(byHeat);
+    activeListEl.replaceChildren(...active.map(jobEl));
+    jailListEl.replaceChildren(...jail.map(jobEl));
+    tomorrowListEl.replaceChildren(...lined.map(tomorrowEl));
+    justAddedId = null;
+    landedIds.clear();
+
+    const lists = {
+      active: [activeListEl, emptyStateEl, active.length],
+      tomorrow: [tomorrowListEl, tomorrowEmptyEl, lined.length],
+      jail: [jailListEl, jailEmptyStateEl, jail.length],
+    };
+    Object.entries(lists).forEach(([tab, [list, empty, n]]) => {
+      const on = currentTab === tab;
+      list.hidden = !on || n === 0;
+      empty.hidden = !on || n > 0;
+      TAB_EL[tab].setAttribute('aria-selected', String(on));
+      TAB_EL[tab].tabIndex = on ? 0 : -1;
+    });
+
+    $('count-active').textContent = String(active.length);
+    $('count-tomorrow').textContent = String(lined.length);
+    const jailCount = $('count-jail');
+    jailCount.textContent = String(jail.length);
+    jailCount.classList.toggle('is-hot', jail.length > 0);
+    jailCount.classList.toggle('is-five0', five0);
+
+    // composer: adds to today or tomorrow; hidden on the jail tab
+    const onTomorrow = currentTab === 'tomorrow';
+    form.hidden = currentTab === 'jail';
+    form.classList.toggle('composer--tomorrow', onTomorrow);
+    $('mission-label').textContent = onTomorrow ? 'New job for tomorrow' : 'New job for today';
+    if (onTomorrow) input.placeholder = 'Line up a job for tomorrow';
+    else if (input.placeholder.startsWith('Line up')) input.placeholder = `e.g. ${PLACEHOLDER_IDEAS[ideaIndex]}`;
+
+    // one-line summary + pick-for-me
+    const n = lists[currentTab][2];
+    const bar = $('board-bar');
+    bar.hidden = n === 0;
+    const plural = (k, word) => `${k} ${word}${k === 1 ? '' : 's'}`;
+    let summary;
+    if (currentTab === 'active') summary = [`${plural(n, 'job')} · `, h('b', null, money(activePay)), ' on the table'];
+    else if (onTomorrow) summary = [`${n} lined up · landing ${landLabel(nextMorning(now()))}`];
+    else summary = [`${n} locked up · `, h('b', null, money(jailPay)), ' to break out'];
+    $('board-bar-text').replaceChildren(...summary);
+    pickBtn.hidden = onTomorrow;
+    renderStrip();
+  }
+
+  function renderHeist() {
+    const n = Math.min(visibleCompletedMissions.length, HEIST_SIZE);
+    $('heist-now').textContent = String(n);
+    slotsEl.replaceChildren(...Array.from({ length: HEIST_SIZE }, (_, i) => {
+      const filled = i < n;
+      const li = h('li', {
+        class: ['slot', filled ? 'is-filled' : '', filled && i >= lastBankedCount ? 'is-new' : ''].join(' ').trim(),
+        'aria-label': filled ? `Win ${i + 1} banked` : `Win ${i + 1} open`,
+      });
+      if (filled) li.append(iconEl(ICON.cash)); else li.textContent = String(i + 1);
+      return li;
+    }));
+    lastBankedCount = n;
+
+    completedListEl.replaceChildren(...visibleCompletedMissions.map((text, index) => h('li', null,
+      iconEl(ICON.check),
+      h('span', { class: 'banked-text' }, text),
+      h('button', { class: 'mini-x', type: 'button', 'data-index': String(index), 'aria-label': `Remove "${text}" from banked wins`, icon: ICON.x }),
+    )));
+    completedListEl.hidden = visibleCompletedMissions.length === 0;
+    bankedEmptyEl.hidden = visibleCompletedMissions.length > 0;
+    $('wins-counter').textContent = totalWinsCount.toLocaleString('en-US');
+    $('heist-total').textContent = heistsScored.toLocaleString('en-US');
+  }
+
+  function renderLadder() {
+    const idx = rankIndex(totalCash);
+    $('ladder').replaceChildren(...RANKS.map((r, i) => h('li', {
+      class: i < idx ? 'is-done' : i === idx ? 'is-current' : i === idx + 1 ? 'is-next' : null,
+      'aria-current': i === idx ? 'step' : null,
+    }, h('span', null, r.name), h('span', null, money(r.min)))));
+  }
+
+  function renderDev() {
+    const days = Math.round(simulatedTimeOffset / DAY_MS);
+    $('clock-note').textContent = days ? `Clock +${days} day${days === 1 ? '' : 's'}` : 'Real time';
+  }
+
+  function renderUI() {
+    renderHUD();
+    renderBoard();
+    renderHeist();
+    renderLadder();
+    renderBig();
+    renderDev();
+    paintSky();
+  }
+
+  // ── Feedback ───────────────────────────────────────────────────────────
+  let toastTimer = 0;
+  function toast(msg, opts = {}) {
+    clearTimeout(toastTimer);
+    const el = h('div', { class: 'toast' },
+      h('span', { class: 'toast-msg' }, msg),
+      opts.amount ? h('span', { class: 'toast-amt' }, opts.amount) : null);
+    if (opts.action) {
+      const btn = h('button', { class: 'toast-action', type: 'button' }, opts.action);
+      btn.addEventListener('click', () => { hide(); opts.onAction(); });
+      el.append(btn);
+    }
+    toastZone.replaceChildren(el);
+    function hide() {
+      clearTimeout(toastTimer);
+      if (!el.isConnected) return;
+      el.classList.add('is-out');
+      setTimeout(() => el.remove(), 220);
+    }
+    toastTimer = setTimeout(hide, opts.duration || 2400);
+  }
+
+  function floatText(fromEl, text) {
+    if (reduceMotion()) return;
+    const r = fromEl.getBoundingClientRect();
+    const f = h('div', { class: 'floater', 'aria-hidden': 'true' }, text);
+    f.style.left = `${r.left + r.width / 2}px`;
+    f.style.top = `${r.top}px`;
+    document.body.append(f);
+    f.addEventListener('animationend', () => f.remove());
+  }
+
+  let cashRaf = 0;
+  function animateCash(from, to) {
+    cancelAnimationFrame(cashRaf);
+    cashEl.classList.remove('is-bump');
+    void cashEl.offsetWidth;
+    cashEl.classList.add('is-bump');
+    if (reduceMotion()) { cashEl.textContent = money(to); return; }
+    cashAnimating = true;
+    const t0 = performance.now();
+    const dur = 750;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      cashEl.textContent = money(from + (to - from) * e);
+      if (k < 1) cashRaf = requestAnimationFrame(step);
+      else { cashAnimating = false; cashEl.textContent = money(totalCash); }
+    };
+    cashRaf = requestAnimationFrame(step);
+  }
+
+  let promoTimer = 0;
+  function showPromo(idx) {
+    const next = RANKS[idx + 1];
+    $('promo-rank').textContent = RANKS[idx].name;
+    $('promo-next').textContent = next ? `Next: ${next.name} at ${money(next.min)}` : 'You run this city now';
+    promo.classList.add('is-on');
+    $('announcer').textContent = `Promoted to ${RANKS[idx].name}`;
+    sfx.rankUp();
+    haptic([30, 40, 30]);
+    confetti.burst(60);
+    clearTimeout(promoTimer);
+    promoTimer = setTimeout(() => promo.classList.remove('is-on'), 3000);
+  }
+
+  // cash & coin confetti
+  const confetti = (() => {
+    const cv = $('fx');
+    const c = cv.getContext('2d');
+    let parts = [];
+    let raf = 0;
+    function size() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(innerWidth * dpr);
+      cv.height = Math.round(innerHeight * dpr);
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function burst(n, origin) {
+      if (reduceMotion()) return;
+      if (!raf) size();
+      for (let i = 0; i < n; i++) {
+        const fromPoint = !!origin;
+        parts.push({
+          x: fromPoint ? origin.x : Math.random() * innerWidth,
+          y: fromPoint ? origin.y : -20 - Math.random() * innerHeight * 0.6,
+          vx: fromPoint ? (Math.random() - 0.5) * 9 : (Math.random() - 0.5) * 2,
+          vy: fromPoint ? -4 - Math.random() * 8 : 1.5 + Math.random() * 2.5,
+          rot: Math.random() * Math.PI * 2,
+          vr: (Math.random() - 0.5) * 0.25,
+          sway: Math.random() * Math.PI * 2,
+          bill: Math.random() < 0.7,
+          s: fromPoint ? 0.7 + Math.random() * 0.3 : 0.9 + Math.random() * 0.5,
+          life: 0,
+        });
+      }
+      if (!raf) raf = requestAnimationFrame(step);
+    }
+    function step() {
+      c.clearRect(0, 0, innerWidth, innerHeight);
+      parts = parts.filter((p) => (p.spark ? p.life < p.max : p.y < innerHeight + 40 && p.life < 420));
+      for (const p of parts) {
+        p.life++;
+        if (p.spark) {
+          p.vx *= 0.965;
+          p.vy = p.vy * 0.965 + 0.05;
+          p.x += p.vx;
+          p.y += p.vy;
+          c.globalCompositeOperation = 'lighter';
+          c.globalAlpha = 1 - p.life / p.max;
+          c.strokeStyle = p.color;
+          c.lineWidth = 2.5;
+          c.beginPath();
+          c.moveTo(p.x - p.vx * 3, p.y - p.vy * 3);
+          c.lineTo(p.x, p.y);
+          c.stroke();
+          c.globalAlpha = 1;
+          c.globalCompositeOperation = 'source-over';
+          continue;
+        }
+        p.vy = Math.min(p.vy + 0.2, p.bill ? 3.4 : 6);
+        p.sway += 0.07;
+        p.vx *= 0.985;
+        p.x += p.vx + Math.sin(p.sway) * (p.bill ? 1.1 : 0.4);
+        p.y += p.vy;
+        p.rot += p.vr;
+        c.save();
+        c.translate(p.x, p.y);
+        c.rotate(p.rot);
+        c.scale(p.s, p.s * Math.cos(p.sway * 1.6));
+        if (p.bill) {
+          c.fillStyle = '#3fae5a';
+          c.fillRect(-14, -7, 28, 14);
+          c.strokeStyle = '#a8f5b8';
+          c.lineWidth = 1;
+          c.strokeRect(-11.5, -4.5, 23, 9);
+          c.fillStyle = '#25803f';
+          c.beginPath();
+          c.arc(0, 0, 3, 0, Math.PI * 2);
+          c.fill();
+        } else {
+          c.fillStyle = '#ffd166';
+          c.beginPath();
+          c.arc(0, 0, 6.5, 0, Math.PI * 2);
+          c.fill();
+          c.strokeStyle = '#c98a1b';
+          c.lineWidth = 1.5;
+          c.stroke();
+        }
+        c.restore();
+      }
+      if (parts.length) raf = requestAnimationFrame(step);
+      else { raf = 0; c.clearRect(0, 0, innerWidth, innerHeight); }
+    }
+    function firework(x, y, color) {
+      if (reduceMotion()) return;
+      if (!raf) size();
+      const n = 64;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.15;
+        const sp = 2.6 + Math.random() * 4.4;
+        parts.push({ spark: true, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 45 + Math.random() * 35, color });
+      }
+      if (!raf) raf = requestAnimationFrame(step);
+    }
+    return { burst, firework };
+  })();
+
+  // ── Heist celebration ──────────────────────────────────────────────────
+  let ovClearTimer = 0;
+  let ovHideTimer = 0;
+  let lastFocus = null;
+  function triggerGTAAnimation(promotedIdx) {
+    const parts = [h('div', null, `${HEIST_SIZE} wins banked · Stash `, h('b', null, money(totalCash)))];
+    if (promotedIdx != null) parts.push(h('div', { class: 'ov-promo' }, `Promoted: ${RANKS[promotedIdx].name}`));
+    $('ov-sub').replaceChildren(...parts);
+    lastFocus = document.activeElement;
+    overlay.hidden = false;
+    overlay.setAttribute('aria-hidden', 'false');
+    void overlay.offsetWidth;
+    overlay.classList.add('is-on');
+    $('announcer').textContent = 'Heist scored. Gangsta!';
+    playHeistJingle();
+    haptic([40, 60, 40, 60, 160]);
+    setTimeout(() => {
+      confetti.burst(170);
+      if (!reduceMotion()) {
+        document.body.classList.add('is-shake');
+        setTimeout(() => document.body.classList.remove('is-shake'), 450);
+      }
+    }, 450);
+    ovClearTimer = setTimeout(clearHeist, 1500);
+    ovHideTimer = setTimeout(hideOverlay, 3900);
+  }
+  function clearHeist() {
+    clearTimeout(ovClearTimer);
+    if (visibleCompletedMissions.length === 0) return;
+    visibleCompletedMissions = [];
+    lastBankedCount = 0;
+    saveData();
+    renderUI();
+  }
+  function hideOverlay() {
+    if (overlay.hidden) return;
+    clearTimeout(ovHideTimer);
+    clearHeist();
+    overlay.classList.remove('is-on');
+    overlay.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { overlay.hidden = true; }, 450);
+    if (lastFocus && lastFocus.isConnected) lastFocus.focus({ preventScroll: true });
+  }
+  overlay.addEventListener('click', hideOverlay);
+
+  // ── Actions ────────────────────────────────────────────────────────────
+  function collapseThen(card, done) {
+    if (!card || reduceMotion()) { done(); return; }
+    const hgt = card.offsetHeight;
+    card.style.height = `${hgt}px`;
+    card.style.overflow = 'hidden';
+    void card.offsetHeight;
+    card.style.transition = 'height .2s ease, padding .2s ease, margin .2s ease, border-width .2s';
+    card.style.height = '0px';
+    card.style.paddingTop = '0px';
+    card.style.paddingBottom = '0px';
+    card.style.borderWidth = '0px';
+    card.style.marginTop = '-10px';
+    setTimeout(done, 210);
+  }
+
+  function addMission(text) {
+    let id = Date.now();
+    while (missions.some((m) => m.id === id)) id++;
+    missions.push({ id, text, createdAt: now() });
+    justAddedId = id;
+    if (currentTab !== 'active') currentTab = 'active';
+    saveData();
+    renderUI();
+    sfx.add();
+    haptic(12);
+    toast('Job on the board', { amount: `pays ${money(50)}` });
+  }
+
+  function completeMission(id, btn) {
+    const index = missions.findIndex((m) => m.id === id);
+    if (index < 0) return;
+    const card = btn.closest('.job');
+    if (card.classList.contains('is-done')) return;
+    const m = missions[index];
+    const reward = calculateReward(calculateDaysOld(m.createdAt));
+    const wasWanted = heatOf(m) > 0;
+    const prevCash = totalCash;
+    const prevRank = rankIndex(prevCash);
+
+    totalCash += reward;
+    totalWinsCount++;
+    visibleCompletedMissions.push(m.text);
+    missions.splice(index, 1);
+    if (pickedId === id) pickedId = null;
+    const heistDone = visibleCompletedMissions.length >= HEIST_SIZE;
+    if (heistDone) heistsScored++;
+    saveData();
+
+    sfx.coin();
+    haptic(25);
+    floatText(btn, `+${money(reward)}`);
+    const r = btn.getBoundingClientRect();
+    confetti.burst(14, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    animateCash(prevCash, totalCash);
+
+    const newRank = rankIndex(totalCash);
+    const promoted = newRank > prevRank ? newRank : null;
+
+    const finish = () => {
+      renderUI();
+      if (heistDone) setTimeout(() => triggerGTAAnimation(promoted), 380);
+      else if (promoted != null) showPromo(promoted);
+      else toast(`${wasWanted ? 'Lost the cops' : pick(HYPE)} · Heist ${visibleCompletedMissions.length}/${HEIST_SIZE}`, { amount: `+${money(reward)}` });
+      if (wasWanted) sfx.sirenDown();
+    };
+    if (reduceMotion()) { finish(); return; }
+    card.classList.add('is-done');
+    setTimeout(() => collapseThen(card, finish), 430);
+  }
+
+  function dropMission(id, btn) {
+    const index = missions.findIndex((m) => m.id === id);
+    if (index < 0) return;
+    const card = btn.closest('.job');
+    if (card.classList.contains('is-dropped')) return;
+    const [m] = missions.splice(index, 1);
+    if (pickedId === id) pickedId = null;
+    saveData();
+    sfx.drop();
+    haptic(10);
+    const undo = () => {
+      missions.splice(Math.min(index, missions.length), 0, m);
+      saveData();
+      renderUI();
+      toast('Job is back');
+    };
+    const finish = () => { renderUI(); toast('Job dropped', { action: 'Undo', onAction: undo, duration: 5000 }); };
+    if (reduceMotion()) { finish(); return; }
+    card.classList.add('is-dropped');
+    setTimeout(() => collapseThen(card, finish), 280);
+  }
+
+  function unbank(index) {
+    const [text] = visibleCompletedMissions.splice(index, 1);
+    if (text === undefined) return;
+    lastBankedCount = visibleCompletedMissions.length;
+    saveData();
+    renderUI();
+    toast('Removed from banked wins', {
+      action: 'Undo',
+      duration: 5000,
+      onAction: () => {
+        visibleCompletedMissions.splice(Math.min(index, visibleCompletedMissions.length), 0, text);
+        lastBankedCount = visibleCompletedMissions.length;
+        saveData();
+        renderUI();
+      },
+    });
+  }
+
+  function animateOut(card, cls, done) {
+    if (!card || reduceMotion()) { done(); return; }
+    card.classList.add(cls);
+    setTimeout(() => collapseThen(card, done), 280);
+  }
+
+  function addTomorrow(text) {
+    let id = Date.now();
+    while (tomorrowMissions.some((m) => m.id === id)) id++;
+    const startsAt = nextMorning(now());
+    tomorrowMissions.push({ id, text, startsAt });
+    justAddedId = id;
+    saveData();
+    renderUI();
+    sfx.add();
+    haptic(12);
+    toast(`Lined up · lands ${landLabel(startsAt)}`);
+  }
+
+  function pushToTomorrow(id, card) {
+    const index = missions.findIndex((m) => m.id === id);
+    if (index < 0 || card.classList.contains('is-dropped')) return;
+    const [m] = missions.splice(index, 1);
+    let newId = m.id;
+    while (tomorrowMissions.some((t) => t.id === newId)) newId++;
+    const item = { id: newId, text: m.text, startsAt: nextMorning(now()) };
+    tomorrowMissions.push(item);
+    if (pickedId === id) pickedId = null;
+    openTray = null;
+    saveData();
+    sfx.lock();
+    haptic(10);
+    const undo = () => {
+      tomorrowMissions = tomorrowMissions.filter((t) => t.id !== item.id);
+      missions.splice(Math.min(index, missions.length), 0, m);
+      saveData();
+      renderUI();
+    };
+    animateOut(card, 'is-dropped', () => {
+      renderUI();
+      toast('Pushed to tomorrow', { action: 'Undo', onAction: undo, duration: 5000 });
+    });
+  }
+
+  function moveToToday(id) {
+    const index = tomorrowMissions.findIndex((m) => m.id === id);
+    if (index < 0) return;
+    const [m] = tomorrowMissions.splice(index, 1);
+    let newId = m.id;
+    while (missions.some((x) => x.id === newId)) newId++;
+    missions.push({ id: newId, text: m.text, createdAt: now() });
+    justAddedId = newId;
+    openTray = null;
+    currentTab = 'active';
+    saveData();
+    renderUI();
+    sfx.add();
+    haptic(12);
+    toast('Moved to today', { amount: `pays ${money(calculateReward(0))}` });
+  }
+
+  function dropTomorrow(id, card) {
+    const index = tomorrowMissions.findIndex((m) => m.id === id);
+    if (index < 0 || card.classList.contains('is-dropped')) return;
+    const [m] = tomorrowMissions.splice(index, 1);
+    openTray = null;
+    saveData();
+    sfx.drop();
+    haptic(10);
+    const undo = () => { tomorrowMissions.push(m); saveData(); renderUI(); };
+    animateOut(card, 'is-dropped', () => {
+      renderUI();
+      toast('Job dropped', { action: 'Undo', onAction: undo, duration: 5000 });
+    });
+  }
+
+  // Move every lined-up job whose 7 AM has passed onto today's board.
+  // They start their clock at that 7 AM, so the usual pay rules apply from there.
+  function landTomorrowJobs() {
+    const t = now();
+    const due = tomorrowMissions.filter((m) => m.startsAt <= t).sort((a, b) => a.startsAt - b.startsAt);
+    if (!due.length) return null;
+    tomorrowMissions = tomorrowMissions.filter((m) => m.startsAt > t);
+    let pay = 0;
+    due.forEach((m) => {
+      let id = m.id;
+      while (missions.some((x) => x.id === id)) id++;
+      missions.push({ id, text: m.text, createdAt: m.startsAt });
+      landedIds.add(id);
+      pay += calculateReward(calculateDaysOld(m.startsAt));
+    });
+    if (currentTab === 'tomorrow') currentTab = 'active';
+    saveData();
+    return { count: due.length, pay };
+  }
+  function announceLanded(landed, withSound) {
+    if (!landed) return;
+    toast(`New day · ${landed.count} job${landed.count === 1 ? '' : 's'} landed · ${money(landed.pay)} up for grabs`, { duration: 4000 });
+    if (withSound) { sfx.lock(); haptic([20, 40, 20]); }
+  }
+
+  // Re-render a list and slide each card from its old spot to its new one,
+  // so a bumped job visibly jumps up the board.
+  function flip(listEl, mutate) {
+    if (reduceMotion() || typeof Element.prototype.animate !== 'function') { mutate(); return; }
+    const before = new Map([...listEl.querySelectorAll('.job')].map((c) => [c.dataset.id, c.getBoundingClientRect().top]));
+    mutate();
+    listEl.querySelectorAll('.job').forEach((c) => {
+      const prev = before.get(c.dataset.id);
+      if (prev == null) return;
+      const dy = prev - c.getBoundingClientRect().top;
+      if (Math.abs(dy) < 1) return;
+      c.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2, .9, .3, 1.15)' });
+    });
+  }
+
+  function raiseHeat(id, btn) {
+    const m = missions.find((x) => x.id === id);
+    if (!m) return;
+    const list = btn.closest('.jobs');
+    const card = btn.closest('.job');
+    const heat = heatOf(m);
+    if (heat >= MAX_HEAT) {
+      card.classList.remove('is-maxed');
+      void card.offsetWidth;
+      card.classList.add('is-maxed');
+      sfx.whoop(MAX_HEAT);
+      haptic([30, 30, 30]);
+      toast("Five stars. Can't get hotter. Go do it!");
+      return;
+    }
+    const hadFocus = document.activeElement === btn;
+    m.heat = heat + 1;
+    m.heatAt = Date.now();
+    m.heatUntil = nextMorning(now());
+    saveData();
+    sfx.whoop(m.heat);
+    haptic(8 + m.heat * 6);
+    flip(list, renderUI);
+    const moved = list.querySelector(`.job[data-id="${id}"]`);
+    if (moved) {
+      moved.classList.add('is-bumped');
+      setTimeout(() => moved.classList.remove('is-bumped'), 700);
+      if (hadFocus) moved.querySelector('.wanted').focus({ preventScroll: true });
+    }
+    if (m.heat === 1) toast("Heat's on · moved up the list");
+    else if (m.heat === MAX_HEAT) toast('Five stars · top of the list');
+  }
+
+  function coolDown(id, card) {
+    const m = missions.find((x) => x.id === id);
+    if (!m) return;
+    const prev = { heat: m.heat, heatAt: m.heatAt, heatUntil: m.heatUntil };
+    m.heat = 0;
+    m.heatAt = 0;
+    openTray = null;
+    saveData();
+    sfx.sirenDown();
+    const list = card.closest('.jobs');
+    flip(list, renderUI);
+    toast('Stars reset', {
+      action: 'Undo',
+      duration: 4000,
+      onAction: () => { Object.assign(m, prev); saveData(); flip(list, renderUI); },
+    });
+  }
+
+  function toggleTray(card) {
+    const key = `${card.classList.contains('job--tomorrow') ? 'tmr' : 'job'}-${card.dataset.id}`;
+    const opening = openTray !== key;
+    document.querySelectorAll('.job.is-open').forEach((c) => {
+      c.classList.remove('is-open');
+      c.querySelector('.job-tray').hidden = true;
+      c.querySelector('.job-body').setAttribute('aria-expanded', 'false');
+    });
+    openTray = opening ? key : null;
+    if (!opening) return;
+    card.classList.add('is-open');
+    card.querySelector('.job-tray').hidden = false;
+    card.querySelector('.job-body').setAttribute('aria-expanded', 'true');
+    sfx.tick();
+  }
+
+  let rolling = false;
+  function pickForMe() {
+    if (rolling) return;
+    const list = currentTab === 'jail' ? jailListEl : activeListEl;
+    const cards = [...list.querySelectorAll('.job')];
+    if (!cards.length) {
+      toast(currentTab === 'active' ? 'Add a job first' : 'Jail is empty. Nice.');
+      return;
+    }
+    list.querySelectorAll('.is-picked').forEach((c) => c.classList.remove('is-picked'));
+    // Weighted pick: every star makes a job more likely to come up.
+    const weights = cards.map((c) => 1 + 2 * (Number(c.dataset.heat) || 0));
+    let roll = Math.random() * weights.reduce((a, b) => a + b, 0);
+    let target = 0;
+    while (target < cards.length - 1 && roll >= weights[target]) { roll -= weights[target]; target++; }
+    const lock = (card) => {
+      rolling = false;
+      pickBtn.disabled = false;
+      pickBtn.classList.remove('is-rolling');
+      pickedId = Number(card.dataset.id);
+      card.classList.add('is-picked');
+      card.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+      card.querySelector('.job-done').focus({ preventScroll: true });
+      sfx.lock();
+      haptic(20);
+      toast('Just this one. Go.');
+    };
+    if (cards.length === 1 || reduceMotion()) { lock(cards[target]); return; }
+    rolling = true;
+    pickBtn.disabled = true;
+    pickBtn.classList.add('is-rolling');
+    const total = Math.max(10, Math.min(14, cards.length * 2)); // about 1–1.5 s, however long the list
+    let i = 0;
+    const spin = () => {
+      cards.forEach((c) => c.classList.remove('is-scan'));
+      const idx = (((target - (total - 1 - i)) % cards.length) + cards.length) % cards.length;
+      if (i < total - 1) {
+        cards[idx].classList.add('is-scan');
+        sfx.tick();
+        i++;
+        setTimeout(spin, 40 + i * i * 1.1);
+      } else {
+        lock(cards[idx]);
+      }
+    };
+    spin();
+  }
+
+  // ── The big score ──────────────────────────────────────────────────────
+  // One hard job with no timer. Optional prep steps pay out as you go;
+  // pressing and holding the button cashes it in with the biggest celebration.
+  const holdBtn = $('hold-btn');
+  const holdHint = $('hold-hint');
+  const boss = $('boss-overlay');
+  const HOLD_HINT = holdHint.textContent;
+  let holding = false;
+  let holdStart = 0;
+  let holdRaf = 0;
+  let holdStep = 0;
+  let hintTimer = 0;
+  let stopRiser = () => {};
+
+  function setHoldLabel(text) {
+    [$('hold-label'), $('hold-label-top')].forEach((el) => el.replaceChildren(iconEl(ICON.crown), text));
+  }
+
+  function renderBig() {
+    const active = !!bigScore;
+    $('big-empty').hidden = active;
+    $('big-active').hidden = !active;
+    if (active) {
+      const done = bigScore.preps.filter((pr) => pr.done).length;
+      $('big-text').textContent = bigScore.text;
+      $('prep-count').textContent = `${done}/${bigScore.preps.length}`;
+      $('preps').replaceChildren(...bigScore.preps.map((pr) => h('li', { class: pr.done ? 'is-done' : null, 'data-id': String(pr.id) },
+        h('button', {
+          class: 'prep-done', type: 'button', 'data-act': 'prep-done', disabled: pr.done,
+          'aria-label': pr.done ? `Done: "${pr.text}"` : `Finish prep step "${pr.text}" for ${money(PREP_PAY)}`, icon: ICON.check,
+        }),
+        h('span', { class: 'prep-text' }, pr.text),
+        pr.done ? h('span') : h('button', { class: 'mini-x', type: 'button', 'data-act': 'prep-drop', 'aria-label': `Remove prep step "${pr.text}"`, icon: ICON.x }),
+      )));
+      $('preps').hidden = bigScore.preps.length === 0;
+      $('prep-form').hidden = bigScore.preps.length >= MAX_PREPS;
+      $('prep-input').placeholder = bigScore.preps.length ? 'Add another step' : 'Add a tiny first step';
+      $('big-since').textContent = `Planning since ${shortDate(bigScore.createdAt)}`;
+      if (!holding) setHoldLabel(`Hold to cash in ${money(BIG_PAY)}`);
+    }
+    const showTrophies = !active && trophies.length > 0;
+    $('trophies').hidden = !showTrophies;
+    if (showTrophies) {
+      $('trophy-count').textContent = String(trophies.length);
+      $('trophy-list').replaceChildren(...trophies.slice(0, 3).map((t) => h('li', null,
+        iconEl(ICON.trophy), h('span', null, t.text), h('time', null, shortDate(t.at)))));
+    }
+    $('big-total').textContent = trophies.length.toLocaleString('en-US');
+    renderStrip();
+  }
+
+  $('big-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const field = $('big-input');
+    const text = field.value.trim();
+    if (!text) { field.focus(); return; }
+    field.value = '';
+    bigScore = { id: Date.now(), text, createdAt: now(), preps: [] };
+    saveData();
+    renderBig();
+    sfx.lock();
+    haptic(20);
+    toast('Big score planned. Add a first step.');
+    $('prep-input').focus();
+  });
+
+  $('prep-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const field = $('prep-input');
+    const text = field.value.trim();
+    if (!text || !bigScore || bigScore.preps.length >= MAX_PREPS) { field.focus(); return; }
+    field.value = '';
+    let id = Date.now();
+    while (bigScore.preps.some((pr) => pr.id === id)) id++;
+    bigScore.preps.push({ id, text, done: false });
+    saveData();
+    renderBig();
+    sfx.add();
+    haptic(10);
+    if (bigScore.preps.length < MAX_PREPS) $('prep-input').focus();
+  });
+
+  $('preps').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn || !bigScore) return;
+    const id = Number(btn.closest('li').dataset.id);
+    const idx = bigScore.preps.findIndex((pr) => pr.id === id);
+    if (idx < 0) return;
+    if (btn.dataset.act === 'prep-drop') {
+      bigScore.preps.splice(idx, 1);
+      saveData();
+      renderBig();
+      sfx.drop();
+      return;
+    }
+    const prep = bigScore.preps[idx];
+    if (prep.done) return;
+    prep.done = true;
+    const prevCash = totalCash;
+    const prevRank = rankIndex(prevCash);
+    totalCash += PREP_PAY;
+    saveData();
+    sfx.coin();
+    haptic(20);
+    floatText(btn, `+${money(PREP_PAY)}`);
+    const r = btn.getBoundingClientRect();
+    confetti.burst(8, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    animateCash(prevCash, totalCash);
+    renderUI();
+    const done = bigScore.preps.filter((pr) => pr.done).length;
+    const newRank = rankIndex(totalCash);
+    if (newRank > prevRank) showPromo(newRank);
+    else toast(done === bigScore.preps.length ? 'Prep done. Ready for the big one' : `Prep done · ${done}/${bigScore.preps.length}`, { amount: `+${money(PREP_PAY)}` });
+  });
+
+  $('big-cancel').addEventListener('click', () => {
+    const saved = bigScore;
+    if (!saved) return;
+    bigScore = null;
+    saveData();
+    renderBig();
+    sfx.drop();
+    toast('Big score called off', {
+      action: 'Undo',
+      duration: 5000,
+      onAction: () => { if (!bigScore) { bigScore = saved; saveData(); renderBig(); } },
+    });
+  });
+
+  function resetHoldVisual() {
+    holdBtn.classList.remove('is-holding', 'is-intense');
+    delete holdBtn.dataset.almost;
+    holdBtn.style.setProperty('--hold', '0');
+  }
+  function startHold(e) {
+    if (holding || !bigScore) return;
+    if (e && e.pointerId != null) { try { holdBtn.setPointerCapture(e.pointerId); } catch { /* ignore */ } }
+    holding = true;
+    holdStart = performance.now();
+    holdStep = 0;
+    clearTimeout(hintTimer);
+    holdHint.textContent = HOLD_HINT;
+    holdHint.classList.remove('is-nudge');
+    holdBtn.classList.add('is-holding');
+    setHoldLabel('Keep holding…');
+    stopRiser = sfx.riser(HOLD_MS);
+    haptic(10);
+    holdRaf = requestAnimationFrame(holdTick);
+  }
+  function holdTick() {
+    if (!holding) return;
+    const k = Math.min(1, (performance.now() - holdStart) / HOLD_MS);
+    holdBtn.style.setProperty('--hold', k.toFixed(4));
+    const stepNow = Math.floor(k * 4);
+    if (stepNow > holdStep) { holdStep = stepNow; haptic(8 + stepNow * 6); }
+    if (k > 0.7 && !holdBtn.dataset.almost) {
+      holdBtn.dataset.almost = '1';
+      holdBtn.classList.add('is-intense');
+      setHoldLabel('Almost…');
+    }
+    if (k >= 1) { finishHold(); return; }
+    holdRaf = requestAnimationFrame(holdTick);
+  }
+  function endHold() {
+    if (!holding) return;
+    holding = false;
+    cancelAnimationFrame(holdRaf);
+    stopRiser();
+    resetHoldVisual();
+    setHoldLabel(`Hold to cash in ${money(BIG_PAY)}`);
+    holdHint.textContent = 'Hold it down a little longer';
+    holdHint.classList.add('is-nudge');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => { holdHint.textContent = HOLD_HINT; holdHint.classList.remove('is-nudge'); }, 2200);
+  }
+  function finishHold() {
+    holding = false;
+    cancelAnimationFrame(holdRaf);
+    stopRiser();
+    setHoldLabel('Pulled off!');
+    pullOffBigScore();
+    setTimeout(resetHoldVisual, 300);
+  }
+  holdBtn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    startHold(e);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => holdBtn.addEventListener(ev, endHold));
+  holdBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+  holdBtn.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!e.repeat) startHold();
+  });
+  holdBtn.addEventListener('keyup', (e) => {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    endHold();
+  });
+  holdBtn.addEventListener('blur', endHold);
+
+  function pullOffBigScore() {
+    const b = bigScore;
+    if (!b) return;
+    const prevCash = totalCash;
+    const prevRank = rankIndex(prevCash);
+    totalCash += BIG_PAY;
+    totalWinsCount++;
+    trophies.unshift({ text: b.text, at: now(), pay: BIG_PAY });
+    trophies = trophies.slice(0, 100);
+    bigScore = null;
+    saveData();
+    const newRank = rankIndex(totalCash);
+    celebrateBigScore(b, prevCash, newRank > prevRank ? newRank : null);
+  }
+
+  let bossTimers = [];
+  let bossCanClose = false;
+  let bossPrevCash = 0;
+  let bossPromoted = null;
+  const later = (ms, fn) => { bossTimers.push(setTimeout(fn, ms)); };
+  function bossShake() {
+    if (reduceMotion()) return;
+    boss.classList.remove('is-shaking');
+    void boss.offsetWidth;
+    boss.classList.add('is-shaking');
+  }
+  function countUp(el, from, to, dur, fmt) {
+    if (reduceMotion()) { el.textContent = fmt(to); return; }
+    const t0 = performance.now();
+    let lastTick = 0;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      el.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) {
+        if (t - lastTick > 70) { lastTick = t; sfx.tick(); }
+        requestAnimationFrame(step);
+      } else {
+        sfx.coin();
+      }
+    };
+    requestAnimationFrame(step);
+  }
+  function celebrateBigScore(b, prevCash, promoted) {
+    bossPrevCash = prevCash;
+    bossPromoted = promoted;
+    bossCanClose = false;
+    $('boss-what').textContent = b.text;
+    const meta = [h('span', null, `Big score #${trophies.length} · Stash `, h('b', null, money(totalCash)))];
+    if (promoted != null) meta.push(h('span', { class: 'promo-line' }, `Promoted: ${RANKS[promoted].name}`));
+    $('boss-meta').replaceChildren(...meta);
+    $('boss-pay').textContent = `+${money(0)}`;
+    lastFocus = document.activeElement;
+    renderUI();
+    boss.hidden = false;
+    boss.setAttribute('aria-hidden', 'false');
+    void boss.offsetWidth;
+    boss.classList.add('is-on');
+    $('announcer').textContent = `Big score pulled off. Boss moves! Plus ${money(BIG_PAY)}.`;
+    sfx.boom();
+    haptic([90, 50, 90, 50, 200]);
+    later(500, () => { sfx.boom(); bossShake(); haptic(60); });
+    later(850, () => { sfx.boom(); bossShake(); haptic(80); sfx.bossFanfare(); });
+    later(1250, () => {
+      countUp($('boss-pay'), 0, BIG_PAY, 1100, (v) => `+${money(v)}`);
+      confetti.burst(110);
+    });
+    const colors = ['#ffd166', '#ff3d7f', '#2ee6c8', '#ff9b3d', '#f7f2ff', '#9a6bff'];
+    for (let i = 0; i < 12; i++) {
+      later(1200 + i * 380, () => {
+        confetti.firework(innerWidth * (0.15 + Math.random() * 0.7), innerHeight * (0.12 + Math.random() * 0.4), colors[i % colors.length]);
+        sfx.pop();
+      });
+    }
+    later(1600, () => { bossCanClose = true; });
+    later(9500, hideBoss);
+  }
+  function hideBoss(force) {
+    if (boss.hidden || (!bossCanClose && force !== true)) return;
+    bossTimers.forEach(clearTimeout);
+    bossTimers = [];
+    boss.classList.remove('is-on', 'is-shaking');
+    boss.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { boss.hidden = true; }, 300);
+    animateCash(bossPrevCash, totalCash);
+    if (bossPromoted != null) {
+      const idx = bossPromoted;
+      bossPromoted = null;
+      setTimeout(() => showPromo(idx), 450);
+    }
+    if (lastFocus && lastFocus.isConnected && lastFocus.offsetParent !== null) lastFocus.focus({ preventScroll: true });
+  }
+  boss.addEventListener('click', () => hideBoss());
+
+  // ── Events ─────────────────────────────────────────────────────────────
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) {
+      form.classList.remove('is-shake');
+      void form.offsetWidth;
+      form.classList.add('is-shake');
+      input.focus();
+      return;
+    }
+    input.value = '';
+    if (currentTab === 'tomorrow') addTomorrow(text);
+    else addMission(text);
+    input.focus();
+  });
+
+  function onListClick(e) {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const card = btn.closest('.job');
+    const id = Number(card.dataset.id);
+    const act = btn.dataset.act;
+    if (act === 'toggle') { toggleTray(card); return; }
+    if (card.classList.contains('job--tomorrow')) {
+      if (act === 'today') moveToToday(id);
+      else if (act === 'drop') dropTomorrow(id, card);
+      return;
+    }
+    if (act !== 'heat') openTray = null;
+    if (act === 'done') completeMission(id, btn);
+    else if (act === 'drop') dropMission(id, btn);
+    else if (act === 'tomorrow') pushToTomorrow(id, card);
+    else if (act === 'heat') raiseHeat(id, btn);
+    else if (act === 'cool') coolDown(id, card);
+  }
+  [activeListEl, tomorrowListEl, jailListEl].forEach((list) => list.addEventListener('click', onListClick));
+
+  $('big-strip').addEventListener('click', () => {
+    $('big').scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+  });
+
+  completedListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-index]');
+    if (btn) unbank(Number(btn.dataset.index));
+  });
+
+  function setTab(tab, focus) {
+    currentTab = tab;
+    openTray = null;
+    renderBoard();
+    if (focus) TAB_EL[tab].focus();
+  }
+  TAB_ORDER.forEach((tab) => TAB_EL[tab].addEventListener('click', () => setTab(tab)));
+  tabActive.parentElement.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const step = e.key === 'ArrowRight' ? 1 : -1;
+    const next = TAB_ORDER[(TAB_ORDER.indexOf(currentTab) + step + TAB_ORDER.length) % TAB_ORDER.length];
+    setTab(next, true);
+  });
+
+  pickBtn.addEventListener('click', pickForMe);
+
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    store.set('gta_muted', muted);
+    renderHUD();
+    if (!muted) sfx.add();
+  });
+
+  $('clear-all-btn').addEventListener('click', () => {
+    if (typeof nukeDialog.showModal === 'function') nukeDialog.showModal();
+    else if (window.confirm('Wipe all missions, cash, and memory?')) nuke();
+  });
+  nukeDialog.addEventListener('close', () => {
+    if (nukeDialog.returnValue === 'nuke') nuke();
+    nukeDialog.returnValue = '';
+  });
+  function nuke() {
+    missions = [];
+    visibleCompletedMissions = [];
+    totalWinsCount = 0;
+    totalCash = 0;
+    simulatedTimeOffset = 0;
+    heistsScored = 0;
+    bigScore = null;
+    trophies = [];
+    tomorrowMissions = [];
+    openTray = null;
+    pickedId = null;
+    lastBankedCount = 0;
+    saveData();
+    renderUI();
+    paintSky(true);
+    toast('Fresh start. Board wiped.');
+  }
+
+  // ── Backup: progress only lives in this browser, so offer a file copy ──
+  const BACKUP_KEYS = ['gta_missions', 'gta_visible_completed', 'gta_wins', 'gta_cash', 'gta_time_offset',
+    'gta_heists', 'gta_big_score', 'gta_big_trophies', 'gta_tomorrow', 'gta_muted', 'gta_seeded'];
+  $('export-btn').addEventListener('click', () => {
+    const data = {};
+    BACKUP_KEYS.forEach((k) => { if (store.has(k)) data[k] = store.get(k, null); });
+    const blob = new Blob([JSON.stringify({ app: 'mission-board', savedAt: Date.now(), data }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: `mission-board-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Backup saved to your downloads');
+  });
+  $('import-btn').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => toast("Couldn't read that file");
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!parsed || parsed.app !== 'mission-board' || typeof parsed.data !== 'object') throw new Error('bad file');
+        BACKUP_KEYS.forEach((k) => { if (k in parsed.data) store.set(k, parsed.data[k]); });
+        toast('Backup loaded. Reloading…');
+        setTimeout(() => location.reload(), 600);
+      } catch { toast("That isn't a Mission Board backup"); }
+    };
+    reader.readAsText(file);
+  });
+
+  $('skip-day').addEventListener('click', () => {
+    simulatedTimeOffset += DAY_MS;
+    saveData();
+    const landed = landTomorrowJobs();
+    renderUI();
+    paintSky(true);
+    toast(`Clock moved to ${shortDate(now())}${landed ? ` · ${landed.count} landed` : ''}`);
+  });
+  $('reset-clock').addEventListener('click', () => {
+    simulatedTimeOffset = 0;
+    saveData();
+    renderUI();
+    paintSky(true);
+    toast('Clock back to real time');
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !overlay.hidden) { hideOverlay(); return; }
+    if (e.key === 'Escape' && !boss.hidden) { hideBoss(true); return; }
+    if (!overlay.hidden || !boss.hidden) return;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+    if (!typing && (e.key === '/' || e.key === 'n') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      if (currentTab === 'jail') setTab('active');
+      input.focus();
+    }
+  });
+
+  // Rotate placeholder ideas so a blank box never stares back.
+  setInterval(() => {
+    if (document.activeElement === input || input.value || currentTab !== 'active') return;
+    ideaIndex = (ideaIndex + 1) % PLACEHOLDER_IDEAS.length;
+    input.placeholder = `e.g. ${PLACEHOLDER_IDEAS[ideaIndex]}`;
+  }, 3500);
+
+  // Jobs age by the hour, so refresh when something would actually change.
+  let ageSignature = '';
+  const signature = () => missions.map((m) => calculateDaysOld(m.createdAt)).join(',') + '|' + tomorrowMissions.length + '|' + skyPhase();
+  function refreshIfAged() {
+    const landed = landTomorrowJobs();
+    const sig = signature();
+    if (sig !== ageSignature || landed) { ageSignature = sig; renderUI(); }
+    announceLanded(landed, true);
+  }
+  setInterval(refreshIfAged, 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfAged(); });
+  window.addEventListener('hashchange', () => paintSky(true));
+
+  let resizeTimer = 0;
+  const queueSky = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => paintSky(), 120); };
+  if ('ResizeObserver' in window) new ResizeObserver(queueSky).observe($('hero-sky'));
+  else window.addEventListener('resize', queueSky);
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  const landedAtBoot = landTomorrowJobs();
+  renderUI();
+  ageSignature = signature();
+  announceLanded(landedAtBoot, false);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => paintSky(true));
+})();
+</script>
+</body>
+</html>
