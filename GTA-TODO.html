@@ -289,9 +289,10 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .layout { display: flex; flex-direction: column; gap: 16px; }
 .side { display: contents; }
 .dock { order: 1; }
-.board { order: 2; }
-.heist { order: 3; }
-.intel { order: 4; }
+.big { order: 2; }
+.board { order: 3; }
+.heist { order: 4; }
+.intel { order: 5; }
 
 .panel {
   position: relative;
@@ -446,6 +447,188 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   color: var(--dim);
 }
 .lifetime b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ───────────────────────── the big score ───────────────────────── */
+@property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --hold { syntax: "<number>"; inherits: true; initial-value: 0; }
+.big {
+  position: relative;
+  padding: 2px;
+  background: conic-gradient(from var(--spin), var(--gold), var(--flare), var(--neon), #9a6bff, var(--palm), var(--gold));
+  box-shadow: 0 24px 60px -28px rgba(255, 170, 60, .6);
+  animation: spin 7s linear infinite;
+}
+@keyframes spin { to { --spin: 360deg; } }
+.big-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(255, 209, 102, .14), transparent 55%),
+    linear-gradient(180deg, #1c150c, #130e19 65%);
+}
+.big-empty, .big-active { display: flex; flex-direction: column; gap: 14px; }
+.big-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.big-head .eyebrow { color: var(--gold); }
+.big-pay { text-align: right; white-space: nowrap; }
+.big-pay small {
+  display: block;
+  margin-bottom: 2px;
+  font: 700 11px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.big-pay b { display: block; font: 900 50px/.9 var(--font-display); color: var(--gold); text-shadow: 0 0 24px rgba(255, 209, 102, .35); }
+.big-pitch { margin: 0; color: var(--smog); max-width: 52ch; }
+.big-form, .prep-form { display: flex; gap: 8px; }
+.big-form input, .prep-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 209, 102, .3);
+  background: rgba(5, 4, 10, .45);
+  color: var(--ink);
+  font: 600 17px/1.2 var(--font-body);
+  outline: 0;
+}
+.big-form input:focus, .prep-form input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255, 209, 102, .18); }
+.big-form input::placeholder, .prep-form input::placeholder { color: var(--dim); }
+.big-plan {
+  flex: none;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 0;
+  background: var(--gold);
+  color: var(--shade);
+  font: 800 16px/1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.big-text { margin: 0; font: 700 clamp(22px, 5.4vw, 28px)/1.2 var(--font-body); overflow-wrap: anywhere; text-wrap: balance; }
+.preps-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.preps-head .eyebrow { margin: 0; }
+.preps-head .eyebrow b { color: var(--ink); }
+.prep-pay { font: 700 12px/1 var(--font-hud); letter-spacing: .12em; text-transform: uppercase; color: var(--cash); }
+.preps { list-style: none; margin: -6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.preps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 6px 6px;
+  background: rgba(255, 255, 255, .04);
+}
+.prep-done {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 209, 102, .55);
+  background: transparent;
+  color: var(--gold);
+  cursor: pointer;
+}
+.prep-done svg { width: 17px; height: 17px; opacity: .3; }
+.prep-text { font: 600 16px/1.3 var(--font-body); overflow-wrap: anywhere; }
+.preps li.is-done .prep-done { background: var(--gold); border-color: var(--gold); color: var(--shade); cursor: default; }
+.preps li.is-done .prep-done svg { opacity: 1; }
+.preps li.is-done .prep-text {
+  color: var(--smog);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 209, 102, .7);
+  text-decoration-thickness: 2px;
+}
+.prep-form button {
+  flex: none;
+  width: 48px;
+  min-height: 46px;
+  border: 1px solid rgba(255, 209, 102, .4);
+  background: rgba(255, 209, 102, .08);
+  color: var(--gold);
+  font: 800 26px/1 var(--font-hud);
+  cursor: pointer;
+}
+.hold-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+.hold-btn {
+  --hold: 0;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 66px;
+  padding: 0 16px;
+  border: 0;
+  background: #2b200e;
+  color: var(--gold);
+  font: 900 26px/1 var(--font-display);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--gold);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.hold-btn:not(.is-holding) { transition: --hold .4s ease-out; }
+.hold-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 5px var(--ink); }
+.hold-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--gold), var(--flare) 70%, var(--neon));
+  transform-origin: left center;
+  transform: scaleX(var(--hold));
+  pointer-events: none;
+}
+.hold-label, .hold-label-top { display: flex; align-items: center; justify-content: center; gap: 10px; pointer-events: none; }
+.hold-label { position: relative; }
+.hold-label svg, .hold-label-top svg { width: 24px; height: 24px; flex: none; }
+.hold-label-top { position: absolute; inset: 0; color: var(--shade); clip-path: inset(0 calc((1 - var(--hold)) * 100%) 0 0); }
+.hold-btn.is-intense { animation: holdJitter .09s linear infinite; }
+@keyframes holdJitter {
+  25% { transform: translate(1px, -1px); }
+  50% { transform: translate(-1px, 1px); }
+  75% { transform: translate(1px, 1px); }
+}
+.hold-hint { margin: 0; font: 600 13px/1.2 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; color: var(--smog); text-align: center; }
+.hold-hint.is-nudge { color: var(--gold); }
+.big-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font: 600 12px/1.2 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.link-btn {
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--smog);
+  font: 700 13px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.trophies { padding-top: 12px; border-top: 1px solid var(--line); }
+.trophies .eyebrow b { color: var(--gold); }
+.trophy-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.trophy-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; font: 600 15px/1.3 var(--font-body); }
+.trophy-list svg { width: 18px; height: 18px; color: var(--gold); }
+.trophy-list span { overflow-wrap: anywhere; }
+.trophy-list time { font: 600 12px/1 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
 
 /* ───────────────────────── board ───────────────────────── */
 .board { padding: 0; }
@@ -683,6 +866,10 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .job-done:hover svg { opacity: 1; transform: scale(1.1); }
   .job--jail .job-done:hover { background: var(--siren-r); border-color: var(--siren-r); color: var(--ink); }
   .job-drop:hover, .mini-x:hover { color: var(--neon); }
+  .big-plan:hover { filter: brightness(1.08); }
+  .preps li:not(.is-done) .prep-done:hover { background: rgba(255, 209, 102, .16); }
+  .prep-form button:hover { background: rgba(255, 209, 102, .18); }
+  .link-btn:hover { color: var(--ink); }
 }
 
 /* empty states */
@@ -946,6 +1133,123 @@ body.is-shake .wrap { animation: shake .4s; }
 }
 .fx { position: fixed; inset: 0; z-index: 61; width: 100%; height: 100%; pointer-events: none; }
 
+/* ───────────────────────── big score celebration ───────────────────────── */
+.boss {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: hidden;
+  text-align: center;
+  background: rgba(5, 4, 10, 0);
+  cursor: pointer;
+  transition: background .15s;
+}
+.boss.is-on { background: rgba(5, 4, 10, .96); }
+.boss-flash { position: absolute; inset: 0; z-index: 3; background: #fffbe8; opacity: 0; pointer-events: none; }
+.boss.is-on .boss-flash { animation: bossFlash .55s ease-out; }
+@keyframes bossFlash { 0% { opacity: .95; } 100% { opacity: 0; } }
+.boss-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 240vmax;
+  height: 240vmax;
+  margin: -120vmax 0 0 -120vmax;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 209, 102, .2) 0deg 8deg, transparent 8deg 16deg);
+  -webkit-mask: radial-gradient(circle, #000 0%, transparent 32%);
+  mask: radial-gradient(circle, #000 0%, transparent 32%);
+  opacity: 0;
+}
+.boss-glow { position: absolute; inset: 0; background: radial-gradient(45% 40% at 50% 50%, rgba(255, 61, 127, .28), transparent 70%); opacity: 0; }
+.boss.is-on .boss-rays { animation: fadeIn .8s .3s forwards, raysSpin 40s linear infinite; }
+.boss.is-on .boss-glow { animation: fadeIn .8s .3s forwards; }
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes raysSpin { to { transform: rotate(360deg); } }
+.boss-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 100%; }
+.boss.is-shaking .boss-inner { animation: shake .35s; }
+.boss-kicker {
+  font: 800 clamp(14px, 3.6vw, 22px)/1 var(--font-hud);
+  letter-spacing: .4em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0;
+}
+.boss-stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 4px 0;
+  transform: rotate(-5deg);
+  filter: drop-shadow(8px 10px 0 rgba(255, 61, 127, .9));
+}
+.boss-stamp span {
+  display: block;
+  font: 900 clamp(64px, min(25vw, 24vh), 270px)/.8 var(--font-display);
+  text-transform: uppercase;
+  white-space: nowrap;
+  -webkit-text-stroke: 3px var(--shade);
+  opacity: 0;
+}
+.boss-stamp .l1 { color: var(--ink); }
+.boss-stamp .l2 {
+  background: linear-gradient(180deg, #fff4c8 8%, var(--gold) 48%, var(--flare) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.boss.is-on .boss-stamp .l1 { animation: slam .5s .5s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+.boss.is-on .boss-stamp .l2 { animation: slam .5s .85s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+@keyframes slam {
+  0% { opacity: 0; transform: scale(3.2); }
+  60% { opacity: 1; transform: scale(.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.boss-pay {
+  font: 900 clamp(44px, min(14vw, 12vh), 128px)/.9 var(--font-display);
+  color: var(--cash);
+  font-variant-numeric: tabular-nums;
+  text-shadow: -3px -3px 0 var(--shade), 3px -3px 0 var(--shade), -3px 3px 0 var(--shade), 3px 3px 0 var(--shade), 0 6px 0 var(--shade);
+  opacity: 0;
+}
+.boss-what {
+  max-width: 30ch;
+  font: 700 clamp(17px, 4.2vw, 24px)/1.3 var(--font-body);
+  overflow-wrap: anywhere;
+  text-decoration: line-through;
+  text-decoration-color: var(--gold);
+  text-decoration-thickness: 3px;
+  opacity: 0;
+}
+.boss-meta {
+  font: 700 clamp(13px, 3.2vw, 18px)/1.4 var(--font-hud);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--smog);
+  opacity: 0;
+}
+.boss-meta b { color: var(--cash); }
+.boss-meta .promo-line { display: block; color: var(--neon); }
+.boss.is-on .boss-kicker { animation: rise .45s .3s var(--glide) forwards; }
+.boss.is-on .boss-pay { animation: rise .4s 1.25s var(--glide) forwards; }
+.boss.is-on .boss-what { animation: rise .45s 2.4s var(--glide) forwards; }
+.boss.is-on .boss-meta { animation: rise .45s 2.6s var(--glide) forwards; }
+.boss-hint {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: calc(4.5vh + env(safe-area-inset-bottom, 0px));
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--dim);
+  opacity: 0;
+}
+.boss.is-on .boss-hint { animation: fadeIn .4s 1.6s forwards; }
+
 /* ───────────────────────── nuke dialog ───────────────────────── */
 .modal {
   width: min(440px, calc(100% - 32px));
@@ -970,6 +1274,7 @@ body.is-shake .wrap { animation: shake .4s; }
   .board-head { padding: 14px 20px 0; }
   .jobs { padding: 18px 20px 22px; }
   .empty { margin: 20px; }
+  .big-inner { padding: 22px; }
   .job { padding: 14px 16px 14px 14px; gap: 16px; }
   .siren { margin: -14px -16px 0 -14px; }
   .job-text { font-size: 18px; }
@@ -980,13 +1285,14 @@ body.is-shake .wrap { animation: shake .4s; }
   .layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 340px;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     gap: 20px;
     align-items: start;
   }
   .dock { grid-column: 1; grid-row: 1; }
-  .board { grid-column: 1; grid-row: 2; align-self: stretch; min-height: 420px; }
-  .side { display: flex; flex-direction: column; gap: 20px; grid-column: 2; grid-row: 1 / span 2; }
+  .big { grid-column: 1; grid-row: 2; }
+  .board { grid-column: 1; grid-row: 3; align-self: stretch; min-height: 420px; }
+  .side { display: flex; flex-direction: column; gap: 20px; grid-column: 2; grid-row: 1 / span 3; }
 }
 @media (max-width: 719px) {
   .board-head { padding: 10px 12px 0; }
@@ -1064,6 +1370,58 @@ body.is-shake .wrap { animation: shake .4s; }
       </div>
     </form>
 
+    <section class="big" id="big" aria-labelledby="big-title">
+      <div class="big-inner">
+        <div class="big-head">
+          <div>
+            <p class="eyebrow">One hard job · no timer</p>
+            <h2 class="panel-title" id="big-title">The Big Score</h2>
+          </div>
+          <div class="big-pay"><small>Pays</small><b>$500</b></div>
+        </div>
+
+        <div class="big-empty" id="big-empty">
+          <p class="big-pitch">Got a job you keep dodging? Make it the big score. Break it into tiny prep steps that pay as you go, then cash in big.</p>
+          <form class="big-form" id="big-form" autocomplete="off">
+            <label class="sr-only" for="big-input">Your big score</label>
+            <input type="text" id="big-input" maxlength="140" enterkeyhint="done" placeholder="e.g. do my tax return">
+            <button type="submit" class="big-plan">Plan it</button>
+          </form>
+        </div>
+
+        <div class="big-active" id="big-active" hidden>
+          <p class="big-text" id="big-text"></p>
+          <div class="preps-head">
+            <p class="eyebrow">Prep jobs <b id="prep-count">0/0</b></p>
+            <span class="prep-pay">+$25 each</span>
+          </div>
+          <ul class="preps" id="preps" aria-label="Prep jobs"></ul>
+          <form class="prep-form" id="prep-form" autocomplete="off">
+            <label class="sr-only" for="prep-input">Add a prep step</label>
+            <input type="text" id="prep-input" maxlength="100" enterkeyhint="done" placeholder="Add a tiny first step">
+            <button type="submit" aria-label="Add prep step">+</button>
+          </form>
+          <div class="hold-wrap">
+            <button class="hold-btn" id="hold-btn" type="button" aria-describedby="hold-hint">
+              <span class="hold-fill" aria-hidden="true"></span>
+              <span class="hold-label" id="hold-label">Hold to cash in $500</span>
+              <span class="hold-label-top" id="hold-label-top" aria-hidden="true">Hold to cash in $500</span>
+            </button>
+            <p class="hold-hint" id="hold-hint">Did the big one? Press and hold for 2 seconds.</p>
+          </div>
+          <div class="big-foot">
+            <span id="big-since"></span>
+            <button class="link-btn" id="big-cancel" type="button">Call it off</button>
+          </div>
+        </div>
+
+        <div class="trophies" id="trophies" hidden>
+          <p class="eyebrow">Trophy wall · <b id="trophy-count">0</b> pulled off</p>
+          <ul class="trophy-list" id="trophy-list"></ul>
+        </div>
+      </div>
+    </section>
+
     <div class="side">
       <section class="panel heist" aria-labelledby="heist-title">
         <div class="heist-head">
@@ -1079,6 +1437,7 @@ body.is-shake .wrap { animation: shake .4s; }
         <p class="lifetime">
           <span>Lifetime <b id="wins-counter">0</b> wins</span>
           <span><b id="heist-total">0</b> heists</span>
+          <span><b id="big-total">0</b> big scores</span>
         </p>
       </section>
 
@@ -1090,8 +1449,10 @@ body.is-shake .wrap { animation: shake .4s; }
           <div><dt>Day 1–4</dt><dd>$40</dd></div>
           <div class="rate--gold"><dt>Day 5–6 · last call</dt><dd>$100</dd></div>
           <div class="rate--jail"><dt>Day 7+ · jail</dt><dd>$50</dd></div>
+          <div class="rate--gold"><dt>Big score prep step</dt><dd>$25</dd></div>
+          <div class="rate--gold"><dt>The big score</dt><dd>$500</dd></div>
         </dl>
-        <p class="intel-note">At day 14 the Five-0 come knocking. Every 5 wins scores a heist.</p>
+        <p class="intel-note">At day 14 the Five-0 come knocking. Every 5 wins scores a heist. The big score never ages.</p>
         <h3 class="eyebrow">Rank ladder</h3>
         <ol class="ladder" id="ladder"></ol>
       </section>
@@ -1161,6 +1522,19 @@ body.is-shake .wrap { animation: shake .4s; }
   </div>
   <div class="ov-hint">Tap to continue</div>
 </div>
+<div class="boss" id="boss-overlay" hidden aria-hidden="true">
+  <div class="boss-rays"></div>
+  <div class="boss-glow"></div>
+  <div class="boss-flash"></div>
+  <div class="boss-inner">
+    <div class="boss-kicker">The big score · pulled off</div>
+    <div class="boss-stamp" aria-hidden="true"><span class="l1">Boss</span><span class="l2">Moves!!!</span></div>
+    <div class="boss-pay" id="boss-pay">+$0</div>
+    <div class="boss-what" id="boss-what"></div>
+    <div class="boss-meta" id="boss-meta"></div>
+  </div>
+  <div class="boss-hint">Tap to continue</div>
+</div>
 <canvas class="fx" id="fx" aria-hidden="true"></canvas>
 
 <dialog class="modal" id="nuke-dialog" aria-labelledby="nuke-title">
@@ -1187,6 +1561,10 @@ body.is-shake .wrap { animation: shake .4s; }
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const HEIST_SIZE = 5;
+  const BIG_PAY = 500;
+  const PREP_PAY = 25;
+  const MAX_PREPS = 8;
+  const HOLD_MS = 2000;
   const RANKS = [
     { min: 0, name: 'Street Rookie' },
     { min: 200, name: 'Corner Hustler' },
@@ -1238,6 +1616,21 @@ body.is-shake .wrap { animation: shake .4s; }
   let heistsScored = toInt(store.get('gta_heists', 0));
   let muted = store.get('gta_muted', false) === true;
 
+  function cleanBig(b) {
+    if (!b || typeof b.text !== 'string') return null;
+    return {
+      id: Number.isFinite(b.id) ? b.id : Date.now(),
+      text: b.text,
+      createdAt: Number.isFinite(b.createdAt) ? b.createdAt : Date.now(),
+      preps: (Array.isArray(b.preps) ? b.preps : [])
+        .filter((pr) => pr && typeof pr.text === 'string')
+        .map((pr, i) => ({ id: Number.isFinite(pr.id) ? pr.id : Date.now() + i, text: pr.text, done: pr.done === true })),
+    };
+  }
+  let bigScore = cleanBig(store.get('gta_big_score', null));
+  let trophies = (Array.isArray(store.get('gta_big_trophies', [])) ? store.get('gta_big_trophies', []) : [])
+    .filter((t) => t && typeof t.text === 'string' && Number.isFinite(t.at));
+
   // A heist that finished while the page was closed has already been paid out.
   if (visibleCompletedMissions.length >= HEIST_SIZE) visibleCompletedMissions = [];
 
@@ -1276,6 +1669,8 @@ body.is-shake .wrap { animation: shake .4s; }
     cash: '<svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="26" height="13" rx="1.5"/><circle cx="16" cy="14.5" r="3"/><path d="M6 4.5h20M9 1.5h14" stroke-linecap="round"/></svg>',
     star: '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.75 5.9 6.45.75-4.78 4.4 1.28 6.37L12 17.05 6.3 20.22l1.28-6.37L2.8 9.45l6.45-.75z"/></svg>',
     soundOn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg>',
+    crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M7 4h10v5a5 5 0 01-10 0V4z"/><path d="M7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3M12 14v3M8 20h8M9.5 17h5"/></svg>',
     soundOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>',
   };
 
@@ -1293,6 +1688,7 @@ body.is-shake .wrap { animation: shake .4s; }
   }
   const iconEl = (svg) => { const t = document.createElement('template'); t.innerHTML = svg; return t.content.firstChild; };
   const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
+  const shortDate = (t) => new Date(t).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
   const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -1320,6 +1716,8 @@ body.is-shake .wrap { animation: shake .4s; }
     store.set('gta_cash', totalCash);
     store.set('gta_time_offset', simulatedTimeOffset);
     store.set('gta_heists', heistsScored);
+    store.set('gta_big_score', bigScore);
+    store.set('gta_big_trophies', trophies);
   }
 
   // First visit: three starter jobs that teach the moves.
@@ -1375,6 +1773,31 @@ body.is-shake .wrap { animation: shake .4s; }
       osc.start(t0);
       osc.stop(t0 + dur + 0.05);
     }
+    let noiseBuf = null;
+    function noise(at, dur, opts) {
+      const o = Object.assign({ vol: 0.3, type: 'lowpass', freq: 800, attack: 0.01 }, opts);
+      if (!noiseBuf) {
+        noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      const t0 = ctx.currentTime + at;
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuf;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = o.type;
+      f.frequency.value = o.freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(o.vol, t0 + o.attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(f);
+      f.connect(g);
+      g.connect(out);
+      src.start(t0);
+      src.stop(t0 + dur + 0.05);
+    }
     const brass = (f, at, dur, vol = 0.09) => {
       tone(f, at, dur, { type: 'sawtooth', vol, attack: 0.025, cutoff: 2400 });
       tone(f * 1.006, at, dur, { type: 'sawtooth', vol: vol * 0.7, attack: 0.025, cutoff: 2400 });
@@ -1399,6 +1822,48 @@ body.is-shake .wrap { animation: shake .4s; }
         tone(98, 0.8, 0.55, { type: 'sine', vol: 0.4, glide: 40 });
         tone(2093, 0.82, 1.1, { type: 'sine', vol: 0.035 });
         tone(3136, 0.9, 0.9, { type: 'sine', vol: 0.02 });
+      },
+      boom() { if (!ready()) return; tone(150, 0, 0.8, { type: 'sine', vol: 0.6, glide: 36 }); noise(0, 0.45, { vol: 0.35, freq: 420 }); },
+      pop() { if (!ready()) return; noise(0, 0.3, { vol: 0.16, type: 'highpass', freq: 2200 }); tone(700 + Math.random() * 700, 0, 0.14, { type: 'triangle', vol: 0.05, glide: 260 }); },
+      // Rising tension while the big-score button is held. Returns a stop function.
+      riser(ms) {
+        if (!ready()) return () => {};
+        const t0 = ctx.currentTime;
+        const dur = ms / 1000;
+        const osc = ctx.createOscillator();
+        const f = ctx.createBiquadFilter();
+        const g = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(160, t0);
+        osc.frequency.exponentialRampToValueAtTime(880, t0 + dur);
+        f.type = 'lowpass';
+        f.frequency.setValueAtTime(500, t0);
+        f.frequency.exponentialRampToValueAtTime(4200, t0 + dur);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.11, t0 + dur);
+        osc.connect(f);
+        f.connect(g);
+        g.connect(out);
+        osc.start(t0);
+        return () => {
+          const t = ctx.currentTime;
+          g.gain.cancelScheduledValues(t);
+          g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+          osc.stop(t + 0.1);
+        };
+      },
+      bossFanfare() {
+        if (!ready()) return;
+        // Original: a rising call, a hit, then a huge major chord with a cymbal swell.
+        brass(523, 0, 0.11); brass(523, 0.13, 0.11); brass(523, 0.26, 0.11);
+        brass(698, 0.4, 0.26);
+        brass(659, 0.7, 0.18); brass(784, 0.9, 0.22);
+        noise(0.8, 0.5, { vol: 0.12, type: 'highpass', freq: 6000, attack: 0.35 });
+        [523, 659, 784, 1047, 1319].forEach((f) => brass(f, 1.15, 1.8, 0.065));
+        tone(65, 1.15, 0.9, { type: 'sine', vol: 0.55, glide: 32 });
+        noise(1.15, 1.6, { vol: 0.14, type: 'highpass', freq: 5000 });
+        [1568, 2093, 2637, 3136].forEach((f, i) => tone(f, 1.3 + i * 0.09, 0.5, { type: 'sine', vol: 0.03 }));
       },
     };
   })();
@@ -1531,7 +1996,7 @@ body.is-shake .wrap { animation: shake .4s; }
     const w = Math.max(1, Math.round(rect.width));
     const h = Math.max(1, Math.round(rect.height));
     const phase = skyPhase();
-    const dateTxt = new Date(now()).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+    const dateTxt = shortDate(now());
     const key = `${w}x${h}:${phase}:${dateTxt}`;
     if (!force && key === skyKey) return;
     skyKey = key;
@@ -1743,6 +2208,7 @@ body.is-shake .wrap { animation: shake .4s; }
     renderBoard();
     renderHeist();
     renderLadder();
+    renderBig();
     renderDev();
     paintSky();
   }
@@ -1847,9 +2313,26 @@ body.is-shake .wrap { animation: shake .4s; }
     }
     function step() {
       c.clearRect(0, 0, innerWidth, innerHeight);
-      parts = parts.filter((p) => p.y < innerHeight + 40 && p.life < 420);
+      parts = parts.filter((p) => (p.spark ? p.life < p.max : p.y < innerHeight + 40 && p.life < 420));
       for (const p of parts) {
         p.life++;
+        if (p.spark) {
+          p.vx *= 0.965;
+          p.vy = p.vy * 0.965 + 0.05;
+          p.x += p.vx;
+          p.y += p.vy;
+          c.globalCompositeOperation = 'lighter';
+          c.globalAlpha = 1 - p.life / p.max;
+          c.strokeStyle = p.color;
+          c.lineWidth = 2.5;
+          c.beginPath();
+          c.moveTo(p.x - p.vx * 3, p.y - p.vy * 3);
+          c.lineTo(p.x, p.y);
+          c.stroke();
+          c.globalAlpha = 1;
+          c.globalCompositeOperation = 'source-over';
+          continue;
+        }
         p.vy = Math.min(p.vy + 0.2, p.bill ? 3.4 : 6);
         p.sway += 0.07;
         p.vx *= 0.985;
@@ -1884,7 +2367,18 @@ body.is-shake .wrap { animation: shake .4s; }
       if (parts.length) raf = requestAnimationFrame(step);
       else { raf = 0; c.clearRect(0, 0, innerWidth, innerHeight); }
     }
-    return { burst };
+    function firework(x, y, color) {
+      if (reduceMotion()) return;
+      if (!raf) size();
+      const n = 64;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.15;
+        const sp = 2.6 + Math.random() * 4.4;
+        parts.push({ spark: true, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 45 + Math.random() * 35, color });
+      }
+      if (!raf) raf = requestAnimationFrame(step);
+    }
+    return { burst, firework };
   })();
 
   // ── Heist celebration ──────────────────────────────────────────────────
@@ -2085,6 +2579,300 @@ body.is-shake .wrap { animation: shake .4s; }
     spin();
   }
 
+  // ── The big score ──────────────────────────────────────────────────────
+  // One hard job with no timer. Optional prep steps pay out as you go;
+  // pressing and holding the button cashes it in with the biggest celebration.
+  const holdBtn = $('hold-btn');
+  const holdHint = $('hold-hint');
+  const boss = $('boss-overlay');
+  const HOLD_HINT = holdHint.textContent;
+  let holding = false;
+  let holdStart = 0;
+  let holdRaf = 0;
+  let holdStep = 0;
+  let hintTimer = 0;
+  let stopRiser = () => {};
+
+  function setHoldLabel(text) {
+    [$('hold-label'), $('hold-label-top')].forEach((el) => el.replaceChildren(iconEl(ICON.crown), text));
+  }
+
+  function renderBig() {
+    const active = !!bigScore;
+    $('big-empty').hidden = active;
+    $('big-active').hidden = !active;
+    if (active) {
+      const done = bigScore.preps.filter((pr) => pr.done).length;
+      $('big-text').textContent = bigScore.text;
+      $('prep-count').textContent = `${done}/${bigScore.preps.length}`;
+      $('preps').replaceChildren(...bigScore.preps.map((pr) => h('li', { class: pr.done ? 'is-done' : null, 'data-id': String(pr.id) },
+        h('button', {
+          class: 'prep-done', type: 'button', 'data-act': 'prep-done', disabled: pr.done,
+          'aria-label': pr.done ? `Done: "${pr.text}"` : `Finish prep step "${pr.text}" for ${money(PREP_PAY)}`, icon: ICON.check,
+        }),
+        h('span', { class: 'prep-text' }, pr.text),
+        pr.done ? h('span') : h('button', { class: 'mini-x', type: 'button', 'data-act': 'prep-drop', 'aria-label': `Remove prep step "${pr.text}"`, icon: ICON.x }),
+      )));
+      $('preps').hidden = bigScore.preps.length === 0;
+      $('prep-form').hidden = bigScore.preps.length >= MAX_PREPS;
+      $('prep-input').placeholder = bigScore.preps.length ? 'Add another step' : 'Add a tiny first step';
+      $('big-since').textContent = `Planning since ${shortDate(bigScore.createdAt)}`;
+      if (!holding) setHoldLabel(`Hold to cash in ${money(BIG_PAY)}`);
+    }
+    const showTrophies = !active && trophies.length > 0;
+    $('trophies').hidden = !showTrophies;
+    if (showTrophies) {
+      $('trophy-count').textContent = String(trophies.length);
+      $('trophy-list').replaceChildren(...trophies.slice(0, 3).map((t) => h('li', null,
+        iconEl(ICON.trophy), h('span', null, t.text), h('time', null, shortDate(t.at)))));
+    }
+    $('big-total').textContent = trophies.length.toLocaleString('en-US');
+  }
+
+  $('big-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const field = $('big-input');
+    const text = field.value.trim();
+    if (!text) { field.focus(); return; }
+    field.value = '';
+    bigScore = { id: Date.now(), text, createdAt: now(), preps: [] };
+    saveData();
+    renderBig();
+    sfx.lock();
+    haptic(20);
+    toast('Big score planned. Add a first step.');
+    $('prep-input').focus();
+  });
+
+  $('prep-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const field = $('prep-input');
+    const text = field.value.trim();
+    if (!text || !bigScore || bigScore.preps.length >= MAX_PREPS) { field.focus(); return; }
+    field.value = '';
+    let id = Date.now();
+    while (bigScore.preps.some((pr) => pr.id === id)) id++;
+    bigScore.preps.push({ id, text, done: false });
+    saveData();
+    renderBig();
+    sfx.add();
+    haptic(10);
+    if (bigScore.preps.length < MAX_PREPS) $('prep-input').focus();
+  });
+
+  $('preps').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn || !bigScore) return;
+    const id = Number(btn.closest('li').dataset.id);
+    const idx = bigScore.preps.findIndex((pr) => pr.id === id);
+    if (idx < 0) return;
+    if (btn.dataset.act === 'prep-drop') {
+      bigScore.preps.splice(idx, 1);
+      saveData();
+      renderBig();
+      sfx.drop();
+      return;
+    }
+    const prep = bigScore.preps[idx];
+    if (prep.done) return;
+    prep.done = true;
+    const prevCash = totalCash;
+    const prevRank = rankIndex(prevCash);
+    totalCash += PREP_PAY;
+    saveData();
+    sfx.coin();
+    haptic(20);
+    floatText(btn, `+${money(PREP_PAY)}`);
+    const r = btn.getBoundingClientRect();
+    confetti.burst(8, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    animateCash(prevCash, totalCash);
+    renderUI();
+    const done = bigScore.preps.filter((pr) => pr.done).length;
+    const newRank = rankIndex(totalCash);
+    if (newRank > prevRank) showPromo(newRank);
+    else toast(done === bigScore.preps.length ? 'Prep done. Ready for the big one' : `Prep done · ${done}/${bigScore.preps.length}`, { amount: `+${money(PREP_PAY)}` });
+  });
+
+  $('big-cancel').addEventListener('click', () => {
+    const saved = bigScore;
+    if (!saved) return;
+    bigScore = null;
+    saveData();
+    renderBig();
+    sfx.drop();
+    toast('Big score called off', {
+      action: 'Undo',
+      duration: 5000,
+      onAction: () => { if (!bigScore) { bigScore = saved; saveData(); renderBig(); } },
+    });
+  });
+
+  function resetHoldVisual() {
+    holdBtn.classList.remove('is-holding', 'is-intense');
+    delete holdBtn.dataset.almost;
+    holdBtn.style.setProperty('--hold', '0');
+  }
+  function startHold(e) {
+    if (holding || !bigScore) return;
+    if (e && e.pointerId != null) { try { holdBtn.setPointerCapture(e.pointerId); } catch { /* ignore */ } }
+    holding = true;
+    holdStart = performance.now();
+    holdStep = 0;
+    clearTimeout(hintTimer);
+    holdHint.textContent = HOLD_HINT;
+    holdHint.classList.remove('is-nudge');
+    holdBtn.classList.add('is-holding');
+    setHoldLabel('Keep holding…');
+    stopRiser = sfx.riser(HOLD_MS);
+    haptic(10);
+    holdRaf = requestAnimationFrame(holdTick);
+  }
+  function holdTick() {
+    if (!holding) return;
+    const k = Math.min(1, (performance.now() - holdStart) / HOLD_MS);
+    holdBtn.style.setProperty('--hold', k.toFixed(4));
+    const stepNow = Math.floor(k * 4);
+    if (stepNow > holdStep) { holdStep = stepNow; haptic(8 + stepNow * 6); }
+    if (k > 0.7 && !holdBtn.dataset.almost) {
+      holdBtn.dataset.almost = '1';
+      holdBtn.classList.add('is-intense');
+      setHoldLabel('Almost…');
+    }
+    if (k >= 1) { finishHold(); return; }
+    holdRaf = requestAnimationFrame(holdTick);
+  }
+  function endHold() {
+    if (!holding) return;
+    holding = false;
+    cancelAnimationFrame(holdRaf);
+    stopRiser();
+    resetHoldVisual();
+    setHoldLabel(`Hold to cash in ${money(BIG_PAY)}`);
+    holdHint.textContent = 'Hold it down a little longer';
+    holdHint.classList.add('is-nudge');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => { holdHint.textContent = HOLD_HINT; holdHint.classList.remove('is-nudge'); }, 2200);
+  }
+  function finishHold() {
+    holding = false;
+    cancelAnimationFrame(holdRaf);
+    stopRiser();
+    setHoldLabel('Pulled off!');
+    pullOffBigScore();
+    setTimeout(resetHoldVisual, 300);
+  }
+  holdBtn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    startHold(e);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => holdBtn.addEventListener(ev, endHold));
+  holdBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+  holdBtn.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!e.repeat) startHold();
+  });
+  holdBtn.addEventListener('keyup', (e) => {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    endHold();
+  });
+  holdBtn.addEventListener('blur', endHold);
+
+  function pullOffBigScore() {
+    const b = bigScore;
+    if (!b) return;
+    const prevCash = totalCash;
+    const prevRank = rankIndex(prevCash);
+    totalCash += BIG_PAY;
+    totalWinsCount++;
+    trophies.unshift({ text: b.text, at: now(), pay: BIG_PAY });
+    trophies = trophies.slice(0, 100);
+    bigScore = null;
+    saveData();
+    const newRank = rankIndex(totalCash);
+    celebrateBigScore(b, prevCash, newRank > prevRank ? newRank : null);
+  }
+
+  let bossTimers = [];
+  let bossCanClose = false;
+  let bossPrevCash = 0;
+  let bossPromoted = null;
+  const later = (ms, fn) => { bossTimers.push(setTimeout(fn, ms)); };
+  function bossShake() {
+    if (reduceMotion()) return;
+    boss.classList.remove('is-shaking');
+    void boss.offsetWidth;
+    boss.classList.add('is-shaking');
+  }
+  function countUp(el, from, to, dur, fmt) {
+    if (reduceMotion()) { el.textContent = fmt(to); return; }
+    const t0 = performance.now();
+    let lastTick = 0;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      el.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) {
+        if (t - lastTick > 70) { lastTick = t; sfx.tick(); }
+        requestAnimationFrame(step);
+      } else {
+        sfx.coin();
+      }
+    };
+    requestAnimationFrame(step);
+  }
+  function celebrateBigScore(b, prevCash, promoted) {
+    bossPrevCash = prevCash;
+    bossPromoted = promoted;
+    bossCanClose = false;
+    $('boss-what').textContent = b.text;
+    const meta = [h('span', null, `Big score #${trophies.length} · Stash `, h('b', null, money(totalCash)))];
+    if (promoted != null) meta.push(h('span', { class: 'promo-line' }, `Promoted: ${RANKS[promoted].name}`));
+    $('boss-meta').replaceChildren(...meta);
+    $('boss-pay').textContent = `+${money(0)}`;
+    lastFocus = document.activeElement;
+    renderUI();
+    boss.hidden = false;
+    boss.setAttribute('aria-hidden', 'false');
+    void boss.offsetWidth;
+    boss.classList.add('is-on');
+    $('announcer').textContent = `Big score pulled off. Boss moves! Plus ${money(BIG_PAY)}.`;
+    sfx.boom();
+    haptic([90, 50, 90, 50, 200]);
+    later(500, () => { sfx.boom(); bossShake(); haptic(60); });
+    later(850, () => { sfx.boom(); bossShake(); haptic(80); sfx.bossFanfare(); });
+    later(1250, () => {
+      countUp($('boss-pay'), 0, BIG_PAY, 1100, (v) => `+${money(v)}`);
+      confetti.burst(110);
+    });
+    const colors = ['#ffd166', '#ff3d7f', '#2ee6c8', '#ff9b3d', '#f7f2ff', '#9a6bff'];
+    for (let i = 0; i < 12; i++) {
+      later(1200 + i * 380, () => {
+        confetti.firework(innerWidth * (0.15 + Math.random() * 0.7), innerHeight * (0.12 + Math.random() * 0.4), colors[i % colors.length]);
+        sfx.pop();
+      });
+    }
+    later(1600, () => { bossCanClose = true; });
+    later(9500, hideBoss);
+  }
+  function hideBoss(force) {
+    if (boss.hidden || (!bossCanClose && force !== true)) return;
+    bossTimers.forEach(clearTimeout);
+    bossTimers = [];
+    boss.classList.remove('is-on', 'is-shaking');
+    boss.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { boss.hidden = true; }, 300);
+    animateCash(bossPrevCash, totalCash);
+    if (bossPromoted != null) {
+      const idx = bossPromoted;
+      bossPromoted = null;
+      setTimeout(() => showPromo(idx), 450);
+    }
+    if (lastFocus && lastFocus.isConnected && lastFocus.offsetParent !== null) lastFocus.focus({ preventScroll: true });
+  }
+  boss.addEventListener('click', () => hideBoss());
+
   // ── Events ─────────────────────────────────────────────────────────────
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -2152,6 +2940,8 @@ body.is-shake .wrap { animation: shake .4s; }
     totalCash = 0;
     simulatedTimeOffset = 0;
     heistsScored = 0;
+    bigScore = null;
+    trophies = [];
     pickedId = null;
     lastBankedCount = 0;
     saveData();
@@ -2165,7 +2955,7 @@ body.is-shake .wrap { animation: shake .4s; }
     saveData();
     renderUI();
     paintSky(true);
-    toast(`Clock moved to ${new Date(now()).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}`);
+    toast(`Clock moved to ${shortDate(now())}`);
   });
   $('reset-clock').addEventListener('click', () => {
     simulatedTimeOffset = 0;
@@ -2177,6 +2967,8 @@ body.is-shake .wrap { animation: shake .4s; }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !overlay.hidden) { hideOverlay(); return; }
+    if (e.key === 'Escape' && !boss.hidden) { hideBoss(true); return; }
+    if (!overlay.hidden || !boss.hidden) return;
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
     if (!typing && (e.key === '/' || e.key === 'n') && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
