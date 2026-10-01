@@ -1,0 +1,2217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0a14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mission Board">
+<title>Mission Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@500;600;700&display=swap">
+<style>
+/* Layout: a sticky game HUD over a night-city postcard; below it the job board,
+   with the heist tracker + pay rates in a side rail on desktop that folds under
+   the board on phones. One dark world on purpose: it's a game, not a settings page. */
+:root {
+  color-scheme: dark;
+  /* colour */
+  --night: #0d0a14;        /* page ground: purple-black asphalt at night */
+  --asphalt: #16111f;      /* panels */
+  --asphalt-hi: #1f1830;   /* cards, inputs */
+  --line: rgba(236, 222, 255, 0.10);
+  --ink: #f7f2ff;
+  --smog: #a69cbc;
+  --dim: #6f6686;
+  --shade: #05040a;        /* outlines, letterbox bars */
+  --neon: #ff3d7f;         /* main action: sunset pink */
+  --flare: #ff9b3d;        /* sunset orange */
+  --gold: #ffd166;         /* bonus pay + celebrations */
+  --palm: #2ee6c8;         /* finish a job */
+  --cash: #7cf29a;         /* money, and only money */
+  --siren-r: #ff3349;
+  --siren-b: #3d7bff;
+  /* type */
+  --font-display: "Big Shoulders Display", "Anton", Impact, "Arial Narrow Bold", sans-serif;
+  --font-hud: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* motion */
+  --snap: cubic-bezier(.2, 1.3, .4, 1);
+  --glide: cubic-bezier(.2, .8, .2, 1);
+  --cut: 14px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; background: var(--night); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--night);
+  color: var(--ink);
+  font: 500 16px/1.45 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+/* city glow behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(110% 55% at 85% -10%, rgba(255, 61, 127, .16), transparent 60%),
+    radial-gradient(80% 45% at -10% 0%, rgba(110, 60, 255, .14), transparent 60%),
+    radial-gradient(70% 40% at 50% 110%, rgba(46, 230, 200, .06), transparent 70%);
+}
+/* film grain */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+button { font: inherit; color: inherit; touch-action: manipulation; }
+button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.eyebrow {
+  margin: 0 0 6px;
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.panel-title {
+  margin: 0;
+  font: 900 32px/.9 var(--font-display);
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+/* ───────────────────────── HUD ───────────────────────── */
+.hud {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: linear-gradient(180deg, rgba(13, 10, 20, .95), rgba(13, 10, 20, .82));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+}
+.hud-inner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rank { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rank-badge {
+  flex: none;
+  width: 40px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(160deg, var(--neon), var(--flare));
+  color: var(--shade);
+  font: 900 22px/1 var(--font-display);
+}
+.rank-text { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.rank-name {
+  font: 700 16px/1 var(--font-hud);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rank-bar {
+  width: clamp(84px, 24vw, 170px);
+  height: 5px;
+  background: rgba(255, 255, 255, .1);
+  transform: skewX(-24deg);
+  overflow: hidden;
+}
+.rank-bar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--neon), var(--flare));
+  transition: width .7s var(--glide);
+}
+.rank-next {
+  font: 600 11px/1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--smog);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stash { display: flex; align-items: center; gap: 10px; flex: none; }
+.stash-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.cash {
+  font: 900 clamp(30px, 8vw, 40px)/.9 var(--font-display);
+  color: var(--cash);
+  letter-spacing: .01em;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    -2px -2px 0 var(--shade), 2px -2px 0 var(--shade),
+    -2px 2px 0 var(--shade), 2px 2px 0 var(--shade), 0 4px 0 var(--shade);
+  transform-origin: right center;
+}
+.cash.is-bump { animation: bump .55s var(--snap); }
+@keyframes bump {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.18); filter: brightness(1.5); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.stars { display: flex; gap: 2px; }
+.star { width: 15px; height: 15px; display: block; }
+.star path { fill: rgba(255, 255, 255, .06); stroke: rgba(255, 255, 255, .28); stroke-width: 1.6; stroke-linejoin: round; }
+.star.is-hot path { fill: var(--ink); stroke: var(--shade); }
+.stars.is-flash .star.is-hot { animation: starBlink .55s steps(2, jump-none) infinite; }
+@keyframes starBlink { 50% { opacity: .25; } }
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--smog);
+  cursor: pointer;
+  padding: 0;
+}
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn[aria-pressed="true"] { color: var(--dim); }
+
+/* ───────────────────────── page ───────────────────────── */
+.wrap {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 16px 16px calc(56px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* hero postcard: the sky is painted on canvas and follows the real time of day */
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 214px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 4px;
+  overflow: hidden;
+  background: #2a1448;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%);
+}
+.hero-sky { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; display: block; }
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(8, 6, 14, .7) 0%, rgba(8, 6, 14, .2) 55%, transparent 80%),
+    linear-gradient(0deg, rgba(8, 6, 14, .55), transparent 60%);
+}
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  background: rgba(5, 4, 10, .55);
+  border: 1px solid rgba(255, 255, 255, .14);
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neon);
+  box-shadow: 0 0 10px var(--neon);
+  animation: live 1.8s ease-in-out infinite;
+}
+@keyframes live { 50% { opacity: .35; } }
+.hero h1 {
+  margin: 8px 0 0;
+  font: 900 clamp(56px, 14.5vw, 120px)/.8 var(--font-display);
+  letter-spacing: .005em;
+  text-transform: uppercase;
+  transform: skewX(-7deg);
+  transform-origin: left bottom;
+  filter: drop-shadow(0 4px 0 rgba(5, 4, 10, .9));
+}
+.hero h1 .grad {
+  background: linear-gradient(100deg, var(--neon) 10%, var(--flare) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-tag {
+  margin: 8px 0 0;
+  font: 600 16px/1.35 var(--font-body);
+  color: rgba(247, 242, 255, .9);
+  max-width: 34ch;
+  text-shadow: 0 1px 8px rgba(5, 4, 10, .8);
+}
+
+/* layout */
+.layout { display: flex; flex-direction: column; gap: 16px; }
+.side { display: contents; }
+.dock { order: 1; }
+.board { order: 2; }
+.heist { order: 3; }
+.intel { order: 4; }
+
+.panel {
+  position: relative;
+  background: var(--asphalt);
+  border: 1px solid var(--line);
+  padding: 18px;
+}
+
+/* ───────────────────────── input dock ───────────────────────── */
+.dock { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.dock-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.dock-head label { margin: 0; }
+.dock-hint {
+  font: 600 12px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.dock-hint b { color: var(--cash); font-weight: 800; }
+.dock-row {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: var(--asphalt-hi);
+  border: 1px solid var(--line);
+  transition: border-color .2s, box-shadow .2s;
+}
+.dock-row:focus-within {
+  border-color: rgba(255, 61, 127, .7);
+  box-shadow: 0 0 0 4px rgba(255, 61, 127, .14), 0 14px 40px -14px rgba(255, 61, 127, .55);
+}
+.dock input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  font: 600 18px/1.2 var(--font-body);
+  padding: 12px 10px;
+}
+.dock input::placeholder { color: var(--dim); }
+.add-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 20px 0 16px;
+  border: 0;
+  background: var(--neon);
+  color: var(--shade);
+  font: 800 18px/1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+  transition: transform .12s, filter .2s;
+}
+.add-btn svg { width: 20px; height: 20px; }
+.add-btn:active { transform: translateY(1px) scale(.97); }
+.add-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--ink); }
+.dock.is-shake .dock-row { animation: nudge .35s; }
+@keyframes nudge { 25% { transform: translateX(-6px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+
+/* ───────────────────────── heist tracker ───────────────────────── */
+.heist {
+  background: linear-gradient(180deg, rgba(255, 209, 102, .09), transparent 45%), var(--asphalt);
+  border-color: rgba(255, 209, 102, .22);
+}
+.heist-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.heist-count {
+  font: 900 48px/.8 var(--font-display);
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.heist-count small { font-size: 24px; color: var(--dim); }
+.slots {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.slot {
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed rgba(255, 209, 102, .32);
+  color: rgba(255, 209, 102, .4);
+  font: 800 20px/1 var(--font-display);
+  transform: skewX(-6deg);
+}
+.slot svg { width: 58%; height: auto; transform: skewX(6deg); }
+.slot.is-filled {
+  border: 0;
+  background: linear-gradient(160deg, #ffe39a, var(--gold) 45%, var(--flare));
+  color: var(--shade);
+  box-shadow: 0 8px 24px -10px rgba(255, 170, 60, .8);
+}
+.slot.is-new { animation: slotPop .6s var(--snap); }
+@keyframes slotPop {
+  0% { transform: skewX(-6deg) scale(.3) rotate(-12deg); opacity: 0; }
+  100% { transform: skewX(-6deg) scale(1) rotate(0); opacity: 1; }
+}
+.banked { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.banked li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 6px 10px;
+  background: rgba(255, 209, 102, .07);
+}
+.banked li > svg { width: 16px; height: 16px; color: var(--gold); }
+.banked-text {
+  font: 600 15px/1.3 var(--font-body);
+  color: var(--smog);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 209, 102, .7);
+  text-decoration-thickness: 2px;
+  overflow-wrap: anywhere;
+}
+.banked-empty { margin: 14px 0 0; font-size: 15px; color: var(--smog); }
+.mini-x {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+.mini-x::after { content: ""; position: absolute; inset: -6px; }
+.mini-x svg { width: 15px; height: 15px; }
+.lifetime {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font: 600 13px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.lifetime b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ───────────────────────── board ───────────────────────── */
+.board { padding: 0; }
+.board-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.tabs { display: flex; gap: 22px; }
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 12px;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: 900 30px/1 var(--font-display);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color .2s;
+}
+.tab[aria-selected="true"] { color: var(--ink); }
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background: var(--neon);
+}
+#tab-jail[aria-selected="true"]::after { background: var(--siren-r); }
+.count {
+  min-width: 24px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--smog);
+  font: 700 14px/1 var(--font-hud);
+  letter-spacing: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tab[aria-selected="true"] .count { background: var(--ink); color: var(--shade); }
+.tab .count.is-hot { background: var(--siren-r); color: var(--ink); }
+.tab .count.is-five0 { animation: sirenBadge .7s steps(2, jump-none) infinite; }
+@keyframes sirenBadge { 0% { background: var(--siren-r); } 100% { background: var(--siren-b); } }
+.pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 61, 127, .5);
+  background: rgba(255, 61, 127, .06);
+  color: var(--neon);
+  font: 700 14px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .2s, color .2s;
+}
+.pick-btn svg { width: 18px; height: 18px; }
+.pick-btn:disabled { opacity: .5; cursor: progress; }
+.pick-btn.is-rolling svg { animation: roll .5s linear infinite; }
+@keyframes roll { to { transform: rotate(360deg); } }
+
+.jobs { list-style: none; margin: 0; padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+
+.job {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--asphalt-hi);
+  border: 1px solid var(--line);
+  transition: border-color .2s, box-shadow .2s, background-color .12s;
+}
+.job-done {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(46, 230, 200, .6);
+  background: rgba(46, 230, 200, .07);
+  color: var(--palm);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s, transform .12s;
+}
+.job-done svg { width: 24px; height: 24px; opacity: .32; transition: opacity .15s, transform .15s; }
+.job-done:active { transform: scale(.9); }
+.job-body { min-width: 0; }
+.job-text { margin: 0; font: 600 17px/1.3 var(--font-body); overflow-wrap: anywhere; }
+.job-meta {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font: 600 12px/1.1 var(--font-hud);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.job-meta svg { width: 14px; height: 14px; }
+.fuse { display: inline-flex; gap: 3px; }
+.fuse i { width: 6px; height: 10px; background: rgba(255, 255, 255, .1); transform: skewX(-18deg); }
+.fuse i.on { background: var(--palm); }
+.job-side { align-self: stretch; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 4px; }
+.pay { text-align: right; white-space: nowrap; }
+.pay small {
+  display: block;
+  margin-bottom: 2px;
+  font: 700 10px/1 var(--font-hud);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--smog);
+}
+.pay b {
+  display: block;
+  font: 900 27px/1 var(--font-display);
+  color: var(--cash);
+  font-variant-numeric: tabular-nums;
+}
+.job-drop {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  margin: 0 -6px -6px 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+.job-drop::after { content: ""; position: absolute; inset: -7px; }
+.job-drop svg { width: 16px; height: 16px; }
+
+/* last call: day 5–6 pays double */
+.job--lastcall {
+  border-color: rgba(255, 209, 102, .5);
+  background: linear-gradient(100deg, rgba(255, 209, 102, .11), transparent 50%), var(--asphalt-hi);
+}
+.job--lastcall .pay b, .job--lastcall .pay small { color: var(--gold); }
+.job--lastcall .fuse i.on { background: var(--gold); }
+.job--lastcall .job-age { color: var(--gold); }
+.job--final .fuse i.on { background: var(--flare); animation: fuse .9s ease-in-out infinite; }
+@keyframes fuse { 50% { opacity: .3; } }
+
+/* jail */
+.job--jail {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 26px, rgba(255, 255, 255, .035) 26px 30px),
+    #1b1221;
+  border-color: rgba(255, 51, 73, .3);
+}
+.job--jail .job-done { border-color: rgba(255, 51, 73, .65); background: rgba(255, 51, 73, .08); color: var(--siren-r); }
+.job--jail .job-text { color: rgba(247, 242, 255, .85); }
+.job--jail .job-age { color: #ff8a96; }
+.siren {
+  grid-column: 1 / -1;
+  margin: -12px -12px 0;
+  padding: 7px 12px;
+  font: 800 13px/1.15 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: 0 1px 2px rgba(5, 4, 10, .6);
+  background: linear-gradient(90deg, var(--siren-r) 0 50%, var(--siren-b) 50% 100%);
+  background-size: 200% 100%;
+  animation: siren .8s steps(2, jump-none) infinite;
+}
+@keyframes siren { 0% { background-position: 0 0; } 100% { background-position: 100% 0; } }
+
+/* pick-for-me roulette: the scanning row inverts, like a game menu */
+.job.is-scan { background: var(--ink); border-color: var(--ink); }
+.job.is-scan, .job.is-scan .job-text, .job.is-scan .job-meta, .job.is-scan .job-age, .job.is-scan .pay b, .job.is-scan .pay small { color: var(--shade); }
+.job.is-picked {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px var(--neon), 0 16px 40px -14px rgba(255, 61, 127, .7);
+}
+.job.is-picked::before {
+  content: "Your next job";
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 4px 8px;
+  background: var(--neon);
+  color: var(--shade);
+  font: 800 11px/1 var(--font-hud);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.job.is-picked .job-done { animation: blip 1.6s ease-out infinite; }
+@keyframes blip {
+  0% { box-shadow: 0 0 0 0 rgba(46, 230, 200, .55); }
+  100% { box-shadow: 0 0 0 16px rgba(46, 230, 200, 0); }
+}
+
+/* card motion */
+.job.is-new { animation: jobIn .5s var(--snap); }
+@keyframes jobIn {
+  0% { transform: translateY(-10px) scale(.96); opacity: 0; border-color: var(--neon); }
+  100% { transform: none; opacity: 1; }
+}
+.job.is-done { animation: jobDone .45s cubic-bezier(.55, 0, .75, .2) forwards; pointer-events: none; }
+@keyframes jobDone {
+  0% { transform: none; }
+  22% { transform: scale(1.03); background: var(--palm); border-color: var(--palm); }
+  100% { transform: translateX(70%) skewX(-12deg); opacity: 0; background: var(--palm); }
+}
+.job.is-dropped { animation: jobDrop .3s ease-in forwards; pointer-events: none; }
+@keyframes jobDrop { to { transform: translateX(-40%); opacity: 0; } }
+
+@media (hover: hover) {
+  .add-btn:hover { filter: brightness(1.1); }
+  .icon-btn:hover { color: var(--ink); border-color: rgba(255, 255, 255, .25); }
+  .tab:hover { color: var(--ink); }
+  .pick-btn:hover:not(:disabled) { background: var(--neon); color: var(--shade); }
+  .job:hover { border-color: rgba(255, 255, 255, .2); }
+  .job-done:hover { background: var(--palm); border-color: var(--palm); color: var(--shade); }
+  .job-done:hover svg { opacity: 1; transform: scale(1.1); }
+  .job--jail .job-done:hover { background: var(--siren-r); border-color: var(--siren-r); color: var(--ink); }
+  .job-drop:hover, .mini-x:hover { color: var(--neon); }
+}
+
+/* empty states */
+.empty {
+  margin: 16px;
+  padding: 24px 20px;
+  border: 1.5px dashed rgba(255, 255, 255, .14);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.empty > svg { flex: none; width: 52px; height: 52px; color: var(--neon); }
+.empty--jail > svg { color: var(--palm); }
+.empty h3 { margin: 0 0 6px; font: 900 28px/1 var(--font-display); text-transform: uppercase; }
+.empty p { margin: 0; color: var(--smog); max-width: 42ch; }
+.sweep { transform-origin: 24px 24px; animation: sweep 4s linear infinite; }
+@keyframes sweep { to { transform: rotate(360deg); } }
+
+/* ───────────────────────── intel ───────────────────────── */
+.rates { margin: 12px 0 0; }
+.rates > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.rates dt { font: 600 15px/1.2 var(--font-hud); letter-spacing: .08em; text-transform: uppercase; color: var(--smog); }
+.rates dd { margin: 0; font: 900 26px/1 var(--font-display); color: var(--cash); font-variant-numeric: tabular-nums; }
+.rates .rate--gold dt { color: var(--gold); }
+.rates .rate--gold dd { color: var(--gold); }
+.rates .rate--jail dt { color: #ff8a96; }
+.intel-note { margin: 12px 0 0; font-size: 15px; color: var(--smog); }
+.intel h3 { margin: 22px 0 10px; }
+.ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.ladder li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, .025);
+  font: 700 15px/1 var(--font-hud);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.ladder li span:last-child { font-variant-numeric: tabular-nums; }
+.ladder li.is-done { color: var(--smog); }
+.ladder li.is-current { background: var(--ink); color: var(--shade); }
+.ladder li.is-next { color: var(--ink); box-shadow: inset 0 0 0 1px rgba(255, 61, 127, .5); }
+
+/* ───────────────────────── footer ───────────────────────── */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px 24px;
+  padding-top: 4px;
+  color: var(--dim);
+  font-size: 14px;
+}
+.devtools summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.devtools p { margin: 0 0 10px; }
+.devtools-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  font: 700 14px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.btn--danger { border-color: rgba(255, 51, 73, .55); color: #ff6b7a; background: rgba(255, 51, 73, .06); }
+.btn--solid-danger { border: 0; background: var(--siren-r); color: var(--ink); }
+.clock-note { font: 600 13px/1 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ───────────────────────── toast, floaters, promo ───────────────────────── */
+.toast-zone {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(480px, 100%);
+  padding: 12px 12px 12px 16px;
+  background: rgba(24, 18, 34, .97);
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 18px 50px -10px rgba(0, 0, 0, .8);
+  animation: toastIn .32s var(--snap);
+}
+.toast.is-out { animation: toastOut .2s ease-in forwards; }
+@keyframes toastIn { from { transform: translateY(16px) scale(.96); opacity: 0; } }
+@keyframes toastOut { to { transform: translateY(10px); opacity: 0; } }
+.toast-msg { font: 700 16px/1.2 var(--font-hud); letter-spacing: .06em; text-transform: uppercase; }
+.toast-amt { font: 900 24px/1 var(--font-display); color: var(--cash); white-space: nowrap; }
+.toast-action {
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: var(--neon);
+  font: 800 15px/1 var(--font-hud);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.floater {
+  position: fixed;
+  z-index: 55;
+  pointer-events: none;
+  font: 900 34px/1 var(--font-display);
+  color: var(--cash);
+  text-shadow: -2px -2px 0 var(--shade), 2px -2px 0 var(--shade), -2px 2px 0 var(--shade), 2px 2px 0 var(--shade), 0 4px 0 var(--shade);
+  transform: translate(-50%, -50%);
+  animation: floatUp 1s var(--glide) forwards;
+}
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.5); }
+  15% { opacity: 1; transform: translate(-50%, -90%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -280%) scale(1); }
+}
+.promo {
+  position: fixed;
+  left: 50%;
+  top: calc(78px + env(safe-area-inset-top, 0px));
+  z-index: 45;
+  width: min(420px, calc(100% - 32px));
+  padding: 14px 18px 16px;
+  background: linear-gradient(100deg, var(--neon), var(--flare));
+  color: var(--shade);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+  transform: translate(-50%, -24px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .4s var(--snap), opacity .25s;
+}
+.promo.is-on { transform: translate(-50%, 0); opacity: 1; }
+.promo .eyebrow { color: rgba(5, 4, 10, .72); }
+.promo strong { display: block; font: 900 40px/.9 var(--font-display); text-transform: uppercase; }
+.promo span { display: block; margin-top: 6px; font: 700 13px/1.2 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ───────────────────────── heist overlay ───────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
+  background: rgba(5, 4, 10, 0);
+  cursor: pointer;
+  transition: background .35s;
+}
+.overlay.is-on { background: rgba(5, 4, 10, .84); }
+.overlay::before, .overlay::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 13vh;
+  background: var(--shade);
+  transform: scaleY(0);
+  transition: transform .45s cubic-bezier(.7, 0, .2, 1);
+}
+.overlay::before { top: 0; transform-origin: top; }
+.overlay::after { bottom: 0; transform-origin: bottom; }
+.overlay.is-on::before, .overlay.is-on::after { transform: scaleY(1); }
+.ov-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 50% at 50% 50%, rgba(255, 209, 102, .55), transparent 70%);
+  opacity: 0;
+}
+.overlay.is-on .ov-flash { animation: flash .9s .38s ease-out; }
+@keyframes flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
+.ov-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.ov-kicker {
+  font: 800 clamp(14px, 3.6vw, 22px)/1 var(--font-hud);
+  letter-spacing: .42em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0;
+}
+.ov-stamp-wrap { filter: drop-shadow(7px 9px 0 rgba(255, 61, 127, .9)); }
+.ov-stamp {
+  display: block;
+  font: 900 clamp(76px, 21vw, 232px)/.82 var(--font-display);
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #fff4c8 8%, var(--gold) 48%, var(--flare) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 3px var(--shade);
+  opacity: 0;
+}
+.ov-sub {
+  font: 700 clamp(15px, 3.6vw, 22px)/1.3 var(--font-hud);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0;
+}
+.ov-sub b { color: var(--cash); }
+.ov-promo { color: var(--neon); }
+.ov-hint {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: calc(4.5vh + env(safe-area-inset-bottom, 0px));
+  font: 700 12px/1 var(--font-hud);
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.overlay.is-on .ov-stamp { animation: stamp 3.4s cubic-bezier(.1, .9, .2, 1) .15s forwards; }
+.overlay.is-on .ov-kicker { animation: rise .45s .55s var(--glide) forwards; }
+.overlay.is-on .ov-sub { animation: rise .45s .75s var(--glide) forwards; }
+@keyframes stamp {
+  0% { opacity: 0; transform: scale(2.8) rotate(-16deg); }
+  11% { opacity: 1; transform: scale(.93) rotate(-5deg); }
+  17% { transform: scale(1.05) rotate(-6deg); }
+  23% { transform: scale(1) rotate(-6deg); }
+  88% { opacity: 1; transform: scale(1.07) rotate(-4deg); }
+  100% { opacity: .9; transform: scale(1.08) rotate(-4deg); }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+body.is-shake .wrap { animation: shake .4s; }
+@keyframes shake {
+  20% { transform: translate(-6px, 3px); }
+  40% { transform: translate(5px, -4px); }
+  60% { transform: translate(-4px, 2px); }
+  80% { transform: translate(3px, -1px); }
+}
+.fx { position: fixed; inset: 0; z-index: 61; width: 100%; height: 100%; pointer-events: none; }
+
+/* ───────────────────────── nuke dialog ───────────────────────── */
+.modal {
+  width: min(440px, calc(100% - 32px));
+  padding: 22px;
+  border: 1px solid rgba(255, 51, 73, .45);
+  background: var(--asphalt);
+  color: var(--ink);
+}
+.modal::backdrop { background: rgba(5, 4, 10, .78); }
+.modal h2 { margin: 0 0 10px; font: 900 36px/.9 var(--font-display); text-transform: uppercase; }
+.modal p { margin: 0; color: var(--smog); }
+.modal .eyebrow { color: #ff6b7a; }
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* ───────────────────────── wider screens ───────────────────────── */
+@media (min-width: 720px) {
+  .wrap { padding-top: 22px; gap: 20px; }
+  .hero { min-height: 260px; padding: 28px 30px; }
+  .hero-tag { font-size: 18px; }
+  .panel { padding: 22px; }
+  .board { padding: 0; }
+  .board-head { padding: 14px 20px 0; }
+  .jobs { padding: 18px 20px 22px; }
+  .empty { margin: 20px; }
+  .job { padding: 14px 16px 14px 14px; gap: 16px; }
+  .siren { margin: -14px -16px 0 -14px; }
+  .job-text { font-size: 18px; }
+  .job-side { flex-direction: row; align-items: center; align-self: center; gap: 14px; }
+  .job-drop { margin: 0; }
+}
+@media (min-width: 980px) {
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-rows: auto 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .dock { grid-column: 1; grid-row: 1; }
+  .board { grid-column: 1; grid-row: 2; align-self: stretch; min-height: 420px; }
+  .side { display: flex; flex-direction: column; gap: 20px; grid-column: 2; grid-row: 1 / span 2; }
+}
+@media (max-width: 719px) {
+  .board-head { padding: 10px 12px 0; }
+  .tabs { gap: 18px; }
+  .tab { font-size: 27px; }
+  .pick-btn { padding: 8px 10px; gap: 6px; font-size: 13px; letter-spacing: .1em; }
+  .jobs { padding: 14px 12px 16px; }
+  .empty { margin: 12px; padding: 20px 16px; }
+}
+@media (max-width: 380px) {
+  .rank-next { display: none; }
+  .tabs { gap: 14px; }
+  .tab { font-size: 25px; }
+  .job { gap: 10px; padding: 10px; }
+  .siren { margin: -10px -10px 0; }
+  .job-done { width: 42px; height: 42px; }
+  .job-done svg { width: 21px; height: 21px; }
+  .pay b { font-size: 23px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .overlay.is-on .ov-stamp, .overlay.is-on .ov-kicker, .overlay.is-on .ov-sub { opacity: 1; animation: none !important; transform: rotate(-5deg); }
+  .overlay.is-on .ov-kicker, .overlay.is-on .ov-sub { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-inner">
+    <div class="rank">
+      <div class="rank-badge" id="rank-badge" aria-hidden="true">1</div>
+      <div class="rank-text">
+        <span class="rank-name" id="rank-name">Street Rookie</span>
+        <span class="rank-bar" aria-hidden="true"><i id="rank-bar"></i></span>
+        <span class="rank-next" id="rank-next">$200 to Corner Hustler</span>
+      </div>
+    </div>
+    <div class="stash">
+      <div class="stash-col">
+        <span class="sr-only">Cash stash</span>
+        <span class="cash" id="total-cash">$0</span>
+        <span class="stars" id="stars" role="img" aria-label="Heat level 0 of 5"></span>
+      </div>
+      <button class="icon-btn" id="mute-btn" type="button" aria-pressed="false" aria-label="Mute sound"></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero" aria-labelledby="board-title">
+    <canvas class="hero-sky" id="hero-sky" aria-hidden="true"></canvas>
+    <span class="hero-eyebrow"><span class="live-dot" aria-hidden="true"></span><span id="hero-date">Today</span></span>
+    <h1 id="board-title">Mission <span class="grad">Board</span></h1>
+    <p class="hero-tag">Every job pays. Even the tiny ones.</p>
+  </section>
+
+  <div class="layout">
+    <form class="dock" id="mission-form" autocomplete="off">
+      <div class="dock-head">
+        <label class="eyebrow" for="mission-input">New job</label>
+        <span class="dock-hint">Pays <b>$50</b> if done today</span>
+      </div>
+      <div class="dock-row">
+        <input type="text" id="mission-input" maxlength="140" enterkeyhint="done" placeholder="e.g. take meds">
+        <button type="submit" class="add-btn" id="add-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </div>
+    </form>
+
+    <div class="side">
+      <section class="panel heist" aria-labelledby="heist-title">
+        <div class="heist-head">
+          <div>
+            <p class="eyebrow">Today's heist · 5 wins</p>
+            <h2 class="panel-title" id="heist-title">Gangsta Credit</h2>
+          </div>
+          <div class="heist-count" aria-live="polite"><span id="heist-now">0</span><small>/5</small></div>
+        </div>
+        <ol class="slots" id="slots" aria-label="Heist progress"></ol>
+        <ul class="banked" id="completed-list" aria-label="Banked wins"></ul>
+        <p class="banked-empty" id="banked-empty">Bank 5 wins to pull off the heist.</p>
+        <p class="lifetime">
+          <span>Lifetime <b id="wins-counter">0</b> wins</span>
+          <span><b id="heist-total">0</b> heists</span>
+        </p>
+      </section>
+
+      <section class="panel intel" aria-labelledby="intel-title">
+        <p class="eyebrow">The rules</p>
+        <h2 class="panel-title" id="intel-title">Pay rates</h2>
+        <dl class="rates">
+          <div><dt>Same day</dt><dd>$50</dd></div>
+          <div><dt>Day 1–4</dt><dd>$40</dd></div>
+          <div class="rate--gold"><dt>Day 5–6 · last call</dt><dd>$100</dd></div>
+          <div class="rate--jail"><dt>Day 7+ · jail</dt><dd>$50</dd></div>
+        </dl>
+        <p class="intel-note">At day 14 the Five-0 come knocking. Every 5 wins scores a heist.</p>
+        <h3 class="eyebrow">Rank ladder</h3>
+        <ol class="ladder" id="ladder"></ol>
+      </section>
+    </div>
+
+    <section class="panel board" aria-label="Jobs">
+      <div class="board-head">
+        <div class="tabs" role="tablist" aria-label="Job lists">
+          <button class="tab" id="tab-active" role="tab" type="button" aria-selected="true" aria-controls="active-list">Jobs <span class="count" id="count-active">0</span></button>
+          <button class="tab" id="tab-jail" role="tab" type="button" aria-selected="false" aria-controls="jail-list" tabindex="-1">Jail <span class="count" id="count-jail">0</span></button>
+        </div>
+        <button class="pick-btn" id="pick-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+          Pick for me
+        </button>
+      </div>
+
+      <ul class="jobs" id="active-list" role="tabpanel" aria-labelledby="tab-active"></ul>
+      <div class="empty" id="empty-state" hidden>
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="24" cy="24" r="20"/><circle cx="24" cy="24" r="11" opacity=".45"/><g class="sweep"><path d="M24 24L38 11" stroke-linecap="round"/></g><circle cx="31" cy="30" r="2.8" fill="currentColor" stroke="none"/></svg>
+        <div>
+          <h3>Board's clear</h3>
+          <p>Drop a job up top. Tiny ones count: "drink water" pays $50 too.</p>
+        </div>
+      </div>
+
+      <ul class="jobs" id="jail-list" role="tabpanel" aria-labelledby="tab-jail" hidden></ul>
+      <div class="empty empty--jail" id="jail-empty-state" hidden>
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><rect x="10" y="21" width="28" height="20" rx="2"/><path d="M16 21v-6a8 8 0 0115.5-2.8" stroke-linecap="round"/><circle cx="24" cy="31" r="2.6" fill="currentColor" stroke="none"/></svg>
+        <div>
+          <h3>Nobody's locked up</h3>
+          <p>Jobs land here after 7 days. Break them out for $50 and lose the heat.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="footer">
+    <details class="devtools">
+      <summary>Dev tools</summary>
+      <p>Test the jail and cash system without waiting.</p>
+      <div class="devtools-row">
+        <button class="btn" id="skip-day" type="button">Skip 1 day</button>
+        <button class="btn" id="reset-clock" type="button">Reset clock</button>
+        <span class="clock-note" id="clock-note">Real time</span>
+      </div>
+    </details>
+    <button class="btn btn--danger" id="clear-all-btn" type="button">Nuke data</button>
+  </footer>
+</main>
+
+<div class="toast-zone" id="toast-zone" aria-live="polite"></div>
+<div class="sr-only" id="announcer" aria-live="assertive"></div>
+
+<div class="promo" id="promo" aria-hidden="true">
+  <p class="eyebrow">Promoted</p>
+  <strong id="promo-rank">Corner Hustler</strong>
+  <span id="promo-next"></span>
+</div>
+
+<div class="overlay" id="gta-overlay" hidden aria-hidden="true">
+  <div class="ov-flash"></div>
+  <div class="ov-inner">
+    <div class="ov-kicker">Heist scored</div>
+    <div class="ov-stamp-wrap"><span class="ov-stamp" id="gta-text-element">Gangsta!!!</span></div>
+    <div class="ov-sub" id="ov-sub"></div>
+  </div>
+  <div class="ov-hint">Tap to continue</div>
+</div>
+<canvas class="fx" id="fx" aria-hidden="true"></canvas>
+
+<dialog class="modal" id="nuke-dialog" aria-labelledby="nuke-title">
+  <form method="dialog">
+    <p class="eyebrow">Danger zone</p>
+    <h2 id="nuke-title">Nuke everything?</h2>
+    <p>This wipes every job, your cash stash, rank and heist count on this device. There's no undo.</p>
+    <div class="modal-actions">
+      <button class="btn" value="cancel" type="submit" autofocus>Keep my stuff</button>
+      <button class="btn btn--solid-danger" value="nuke" type="submit">Nuke it</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── Config ─────────────────────────────────────────────────────────────
+  // Optional: your own heist jingle, sitting next to this file. "#" must be
+  // written as %23 in a URL, otherwise the browser treats it as a page anchor
+  // and the file never loads. If it can't load, a built-in jingle plays.
+  const CUSTOM_JINGLE_URL = 'Mission_passed_jingl_%232-1783759697834.mp3';
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const HEIST_SIZE = 5;
+  const RANKS = [
+    { min: 0, name: 'Street Rookie' },
+    { min: 200, name: 'Corner Hustler' },
+    { min: 500, name: 'Wheelman' },
+    { min: 1000, name: 'Enforcer' },
+    { min: 2000, name: 'Shot Caller' },
+    { min: 4000, name: 'Underboss' },
+    { min: 8000, name: 'Kingpin' },
+    { min: 15000, name: 'City Legend' },
+  ];
+  const HYPE = [
+    'Clean getaway', 'Smooth operator', 'Easy money', "That's how it's done",
+    'Too easy', 'Pro move', 'Cash in hand', 'Another one', 'No sweat', 'Big moves',
+  ];
+  const PLACEHOLDER_IDEAS = [
+    'take meds', 'answer that one email', 'drink a glass of water', 'five-minute tidy',
+    'book the dentist', 'put a wash on', 'step outside for 2 minutes', 'text back',
+  ];
+  const STARTER_JOBS = [
+    'Tap the circle to finish this job and get paid',
+    "Add one tiny job of your own (even 'drink water' counts)",
+    "Hit 'Pick for me' when you can't choose",
+  ];
+
+  // ── Storage (keys match the original version, so existing progress carries over) ──
+  const store = {
+    get(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode etc. */ }
+    },
+    has(key) {
+      try { return localStorage.getItem(key) !== null; } catch { return false; }
+    },
+  };
+  const toInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; };
+
+  let missions = (Array.isArray(store.get('gta_missions', [])) ? store.get('gta_missions', []) : [])
+    .filter((m) => m && typeof m.text === 'string' && Number.isFinite(m.id) && Number.isFinite(m.createdAt));
+  let visibleCompletedMissions = (Array.isArray(store.get('gta_visible_completed', [])) ? store.get('gta_visible_completed', []) : [])
+    .filter((t) => typeof t === 'string');
+  let totalWinsCount = toInt(store.get('gta_wins', 0));
+  let totalCash = toInt(store.get('gta_cash', 0));
+  let simulatedTimeOffset = toInt(store.get('gta_time_offset', 0));
+  let heistsScored = toInt(store.get('gta_heists', 0));
+  let muted = store.get('gta_muted', false) === true;
+
+  // A heist that finished while the page was closed has already been paid out.
+  if (visibleCompletedMissions.length >= HEIST_SIZE) visibleCompletedMissions = [];
+
+  let currentTab = 'active';
+  let pickedId = null;
+  let justAddedId = null;
+  let lastBankedCount = visibleCompletedMissions.length;
+  let cashAnimating = false;
+
+  // ── DOM ────────────────────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const form = $('mission-form');
+  const input = $('mission-input');
+  const activeListEl = $('active-list');
+  const jailListEl = $('jail-list');
+  const emptyStateEl = $('empty-state');
+  const jailEmptyStateEl = $('jail-empty-state');
+  const completedListEl = $('completed-list');
+  const bankedEmptyEl = $('banked-empty');
+  const slotsEl = $('slots');
+  const cashEl = $('total-cash');
+  const starsEl = $('stars');
+  const tabActive = $('tab-active');
+  const tabJail = $('tab-jail');
+  const pickBtn = $('pick-btn');
+  const muteBtn = $('mute-btn');
+  const overlay = $('gta-overlay');
+  const toastZone = $('toast-zone');
+  const promo = $('promo');
+  const nukeDialog = $('nuke-dialog');
+
+  const ICON = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/></svg>',
+    cash: '<svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="26" height="13" rx="1.5"/><circle cx="16" cy="14.5" r="3"/><path d="M6 4.5h20M9 1.5h14" stroke-linecap="round"/></svg>',
+    star: '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.75 5.9 6.45.75-4.78 4.4 1.28 6.37L12 17.05 6.3 20.22l1.28-6.37L2.8 9.45l6.45-.75z"/></svg>',
+    soundOn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg>',
+    soundOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>',
+  };
+
+  // Small DOM builder. User text only ever goes in as text nodes.
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'icon') el.innerHTML = v; // static markup from ICON only
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+    return el;
+  }
+  const iconEl = (svg) => { const t = document.createElement('template'); t.innerHTML = svg; return t.content.firstChild; };
+  const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  // ── Time & rules ──────────────────────────────────────────────────────
+  const now = () => Date.now() + simulatedTimeOffset;
+  const calculateDaysOld = (createdAt) => Math.max(0, Math.floor((now() - createdAt) / DAY_MS));
+
+  function calculateReward(daysOld) {
+    if (daysOld === 0) return 50;
+    if (daysOld >= 1 && daysOld <= 4) return 40;
+    if (daysOld === 5 || daysOld === 6) return 100;
+    return 50; // anything broken out of jail
+  }
+
+  function rankIndex(cash) {
+    let idx = 0;
+    RANKS.forEach((r, i) => { if (cash >= r.min) idx = i; });
+    return idx;
+  }
+
+  function saveData() {
+    store.set('gta_missions', missions);
+    store.set('gta_visible_completed', visibleCompletedMissions);
+    store.set('gta_wins', totalWinsCount);
+    store.set('gta_cash', totalCash);
+    store.set('gta_time_offset', simulatedTimeOffset);
+    store.set('gta_heists', heistsScored);
+  }
+
+  // First visit: three starter jobs that teach the moves.
+  if (!store.has('gta_missions') && !store.has('gta_seeded')) {
+    const t = now();
+    missions = STARTER_JOBS.map((text, i) => ({ id: t + i, text, createdAt: t }));
+    store.set('gta_seeded', true);
+    saveData();
+  }
+
+  // ── Sound (synthesised in the browser, so there's nothing to license) ──
+  const sfx = (() => {
+    let ctx = null;
+    let out = null;
+    function ready() {
+      if (muted) return false;
+      try {
+        if (!ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return false;
+          ctx = new AC();
+          const comp = ctx.createDynamicsCompressor();
+          out = ctx.createGain();
+          out.gain.value = 0.55;
+          out.connect(comp);
+          comp.connect(ctx.destination);
+        }
+        if (ctx.state === 'suspended') ctx.resume();
+        return true;
+      } catch { return false; }
+    }
+    function tone(freq, at, dur, opts) {
+      const o = Object.assign({ type: 'square', vol: 0.15, attack: 0.006, glide: 0, cutoff: 0 }, opts);
+      const t0 = ctx.currentTime + at;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = o.type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if (o.glide) osc.frequency.exponentialRampToValueAtTime(o.glide, t0 + dur);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(o.vol, t0 + o.attack);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      let node = osc;
+      if (o.cutoff) {
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = o.cutoff;
+        osc.connect(f);
+        node = f;
+      }
+      node.connect(gain);
+      gain.connect(out);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.05);
+    }
+    const brass = (f, at, dur, vol = 0.09) => {
+      tone(f, at, dur, { type: 'sawtooth', vol, attack: 0.025, cutoff: 2400 });
+      tone(f * 1.006, at, dur, { type: 'sawtooth', vol: vol * 0.7, attack: 0.025, cutoff: 2400 });
+    };
+    return {
+      add() { if (!ready()) return; tone(660, 0, 0.09, { type: 'triangle', vol: 0.2 }); tone(990, 0.06, 0.14, { type: 'triangle', vol: 0.16 }); },
+      coin() { if (!ready()) return; tone(988, 0, 0.08, { vol: 0.1 }); tone(1319, 0.07, 0.38, { vol: 0.1 }); tone(2637, 0.07, 0.22, { type: 'sine', vol: 0.05 }); },
+      drop() { if (!ready()) return; tone(320, 0, 0.2, { type: 'sawtooth', vol: 0.08, glide: 110, cutoff: 900 }); },
+      tick() { if (!ready()) return; tone(1500, 0, 0.03, { vol: 0.045 }); },
+      lock() { if (!ready()) return; tone(784, 0, 0.1, { type: 'triangle', vol: 0.18 }); tone(1175, 0.08, 0.22, { type: 'triangle', vol: 0.16 }); },
+      rankUp() {
+        if (!ready()) return;
+        [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.085, 0.22, { type: 'square', vol: 0.07, cutoff: 3000 }));
+        brass(1047, 0.34, 0.6, 0.07);
+      },
+      jingle() {
+        if (!ready()) return;
+        // An original little fanfare: pickup, hit, then a big held chord over a low thump.
+        brass(392, 0, 0.13); brass(392, 0.15, 0.13); brass(523, 0.3, 0.2);
+        brass(659, 0.54, 0.22);
+        [523, 659, 784, 1047].forEach((f) => brass(f, 0.8, 1.25, 0.07));
+        tone(98, 0.8, 0.55, { type: 'sine', vol: 0.4, glide: 40 });
+        tone(2093, 0.82, 1.1, { type: 'sine', vol: 0.035 });
+        tone(3136, 0.9, 0.9, { type: 'sine', vol: 0.02 });
+      },
+    };
+  })();
+
+  let customJingle = null;
+  let customJingleState = 'none'; // none | loading | ok | missing
+  if (CUSTOM_JINGLE_URL) {
+    try {
+      customJingle = new Audio();
+      customJingle.preload = 'auto';
+      customJingleState = 'loading';
+      customJingle.addEventListener('canplaythrough', () => { customJingleState = 'ok'; }, { once: true });
+      customJingle.addEventListener('error', () => { customJingleState = 'missing'; }, { once: true });
+      customJingle.src = CUSTOM_JINGLE_URL;
+    } catch { customJingleState = 'missing'; }
+  }
+  function playHeistJingle() {
+    if (muted) return;
+    if (!customJingle || customJingleState === 'missing') { sfx.jingle(); return; }
+    try {
+      customJingle.currentTime = 0;
+      customJingle.play().catch(() => { customJingleState = 'missing'; sfx.jingle(); });
+    } catch { sfx.jingle(); }
+  }
+  function haptic(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch { /* not supported */ }
+  }
+
+  // ── Hero sky: procedural skyline, palette follows the time of day ──────
+  const SKIES = {
+    dawn:  { label: 'Dawn patrol', sky: ['#24164a', '#6a3a7a', '#e8768a', '#ffc28c'], glow: 'rgba(255,190,140,.55)', sun: ['#fff1c9', '#ffb27a'], sunY: 0.74, sunR: 1, far: '#5b3a72', near: '#170f24', palm: '#0e0918', lit: 0.12, stars: false },
+    day:   { label: 'Day shift', sky: ['#1d3b8c', '#2f74c9', '#5cc0e2', '#ffe0a8'], glow: 'rgba(255,245,210,.5)', sun: ['#ffffff', '#fff0c2'], sunY: 0.26, sunR: 0.8, far: '#3f5a92', near: '#141a33', palm: '#0c1124', lit: 0.03, stars: false },
+    dusk:  { label: 'Golden hour', sky: ['#1a0a33', '#5c1a66', '#ff3d7f', '#ffa04a'], glow: 'rgba(255,130,90,.6)', sun: ['#ffe08f', '#ff6f61'], sunY: 0.7, sunR: 1.1, far: '#4c1f5e', near: '#130b20', palm: '#0b0614', lit: 0.26, stars: false },
+    night: { label: 'Night shift', sky: ['#04030c', '#0f0b2a', '#26134a', '#4a1c5e'], glow: 'rgba(170,140,255,.22)', sun: ['#fbf6ff', '#d8ccff'], sunY: 0.24, sunR: 0.55, far: '#1d1538', near: '#07050e', palm: '#040309', lit: 0.5, stars: true },
+  };
+  function skyPhase() {
+    const forced = (location.hash || '').slice(1);
+    if (SKIES[forced]) return forced;
+    const hr = new Date(now()).getHours();
+    if (hr >= 5 && hr < 8) return 'dawn';
+    if (hr >= 8 && hr < 17) return 'day';
+    if (hr >= 17 && hr < 20) return 'dusk';
+    return 'night';
+  }
+  function seeded(a) {
+    return () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function drawSkyline(c, rnd, w, h, o) {
+    let x = -8;
+    let tallest = null;
+    while (x < w + 8) {
+      const bw = o.minW + rnd() * (o.maxW - o.minW);
+      let bh = h * (o.minH + rnd() * (o.maxH - o.minH));
+      if (o.towers && rnd() < 0.14) bh = h * (o.maxH + rnd() * 0.2);
+      const top = h - bh;
+      c.fillStyle = o.color;
+      c.fillRect(x, top, bw + 1, bh);
+      if (rnd() < 0.3) c.fillRect(x + bw * 0.3, top - 5, bw * 0.4, 5);
+      if (o.towers && bh > h * 0.5) {
+        c.fillRect(x + bw / 2 - 1, top - 16, 2, 16);
+        if (!tallest || top < tallest.y) tallest = { x: x + bw / 2, y: top - 17 };
+      }
+      if (o.windows) {
+        for (let wy = top + 6; wy < h - 6; wy += 7) {
+          for (let wx = x + 4; wx < x + bw - 5; wx += 6) {
+            if (rnd() < o.windows) {
+              c.fillStyle = rnd() < 0.86 ? `rgba(255,212,140,${0.45 + rnd() * 0.5})` : 'rgba(255,110,170,.85)';
+              c.fillRect(wx, wy, 2.5, 3.5);
+            }
+          }
+        }
+      }
+      x += bw + (rnd() < 0.2 ? rnd() * 5 : 0);
+    }
+    if (tallest) {
+      c.fillStyle = '#ff3349';
+      c.beginPath();
+      c.arc(tallest.x, tallest.y, 2, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+  function drawPalm(c, x0, y0, H, lean, color) {
+    const x1 = x0 + lean * H;
+    const y1 = y0 - H;
+    const cx = x0 + lean * H * 0.15;
+    const cy = y0 - H * 0.55;
+    const at = (t) => ({
+      x: (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * cx + t * t * x1,
+      y: (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * cy + t * t * y1,
+    });
+    c.strokeStyle = color;
+    c.fillStyle = color;
+    c.lineCap = 'round';
+    const segs = 28;
+    for (let i = 0; i < segs; i++) {
+      const p0 = at(i / segs);
+      const p1 = at((i + 1) / segs);
+      c.lineWidth = H * (0.048 - 0.026 * (i / segs));
+      c.beginPath();
+      c.moveTo(p0.x, p0.y);
+      c.lineTo(p1.x, p1.y);
+      c.stroke();
+    }
+    const angles = [-3.05, -2.7, -2.3, -1.9, -1.5, -1.1, -0.7, -0.3, 0.05];
+    angles.forEach((a, i) => {
+      const len = H * (0.34 + 0.05 * Math.sin(i * 1.7));
+      const ex = x1 + Math.cos(a) * len;
+      const ey = y1 + Math.sin(a) * len * 0.45 + len * 0.42;
+      const mx = x1 + Math.cos(a) * len * 0.55;
+      const my = y1 + Math.sin(a) * len * 0.75 - len * 0.12;
+      c.beginPath();
+      c.moveTo(x1, y1);
+      c.quadraticCurveTo(mx, my - len * 0.09, ex, ey);
+      c.quadraticCurveTo(mx, my + len * 0.06, x1, y1 + H * 0.02);
+      c.fill();
+    });
+    c.beginPath();
+    c.arc(x1, y1 + H * 0.01, H * 0.03, 0, Math.PI * 2);
+    c.fill();
+  }
+  let skyKey = '';
+  function paintSky(force) {
+    const cv = $('hero-sky');
+    const rect = cv.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width));
+    const h = Math.max(1, Math.round(rect.height));
+    const phase = skyPhase();
+    const dateTxt = new Date(now()).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+    const key = `${w}x${h}:${phase}:${dateTxt}`;
+    if (!force && key === skyKey) return;
+    skyKey = key;
+    const p = SKIES[phase];
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    const c = cv.getContext('2d');
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const rnd = seeded(1987);
+
+    const sky = c.createLinearGradient(0, 0, 0, h * 0.9);
+    p.sky.forEach((col, i) => sky.addColorStop(i / (p.sky.length - 1), col));
+    c.fillStyle = sky;
+    c.fillRect(0, 0, w, h);
+
+    if (p.stars) {
+      for (let i = 0; i < 90; i++) {
+        c.fillStyle = `rgba(255,255,255,${0.2 + rnd() * 0.6})`;
+        const s = rnd() < 0.9 ? 1 : 2;
+        c.fillRect(rnd() * w, rnd() * h * 0.6, s, s);
+      }
+    }
+
+    const sx = w * 0.72;
+    const sy = h * p.sunY;
+    const sr = Math.min(h * 0.24, 88) * p.sunR;
+    const glow = c.createRadialGradient(sx, sy, 0, sx, sy, Math.max(w, h) * 0.65);
+    glow.addColorStop(0, p.glow);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, w, h);
+    const sun = c.createLinearGradient(0, sy - sr, 0, sy + sr);
+    sun.addColorStop(0, p.sun[0]);
+    sun.addColorStop(1, p.sun[1]);
+    c.fillStyle = sun;
+    c.beginPath();
+    c.arc(sx, sy, sr, 0, Math.PI * 2);
+    c.fill();
+
+    drawSkyline(c, rnd, w, h, { color: p.far, minW: 14, maxW: 40, minH: 0.2, maxH: 0.52, towers: true, windows: 0 });
+    drawSkyline(c, rnd, w, h, { color: p.near, minW: 22, maxW: 66, minH: 0.1, maxH: 0.34, towers: false, windows: p.lit });
+
+    drawPalm(c, w * 0.035, h + 4, h * 0.98, 0.1, p.palm);
+    drawPalm(c, w * 0.955, h + 4, h * 0.9, -0.12, p.palm);
+    if (w > 640) drawPalm(c, w * 0.86, h + 4, h * 0.62, 0.06, p.palm);
+
+    $('hero-date').textContent = `${dateTxt} · ${p.label}`;
+  }
+
+  // ── Rendering ──────────────────────────────────────────────────────────
+  function renderHUD() {
+    const idx = rankIndex(totalCash);
+    const rank = RANKS[idx];
+    const next = RANKS[idx + 1];
+    $('rank-badge').textContent = String(idx + 1);
+    $('rank-name').textContent = rank.name;
+    if (next) {
+      const pct = ((totalCash - rank.min) / (next.min - rank.min)) * 100;
+      $('rank-bar').style.width = `${Math.max(3, Math.min(100, pct))}%`;
+      $('rank-next').textContent = `${money(next.min - totalCash)} to ${next.name}`;
+    } else {
+      $('rank-bar').style.width = '100%';
+      $('rank-next').textContent = 'Top of the city';
+    }
+    if (!cashAnimating) cashEl.textContent = money(totalCash);
+
+    let jailed = 0;
+    let five0 = 0;
+    missions.forEach((m) => {
+      const d = calculateDaysOld(m.createdAt);
+      if (d >= 7) jailed++;
+      if (d >= 14) five0++;
+    });
+    const heat = Math.min(5, jailed + five0);
+    starsEl.replaceChildren(...Array.from({ length: 5 }, (_, i) => {
+      const s = iconEl(ICON.star);
+      if (i < heat) s.classList.add('is-hot');
+      return s;
+    }));
+    starsEl.classList.toggle('is-flash', five0 > 0);
+    starsEl.setAttribute('aria-label', `Heat level ${heat} of 5`);
+
+    muteBtn.innerHTML = muted ? ICON.soundOff : ICON.soundOn;
+    muteBtn.setAttribute('aria-pressed', String(muted));
+    muteBtn.setAttribute('aria-label', muted ? 'Turn sound on' : 'Mute sound');
+  }
+
+  function jobEl(m) {
+    const d = calculateDaysOld(m.createdAt);
+    const reward = calculateReward(d);
+    const jail = d >= 7;
+    const five0 = d >= 14;
+    const lastCall = !jail && d >= 5;
+    const left = 7 - d;
+
+    let age;
+    if (five0) age = `Day ${d} · Five-0 inbound`;
+    else if (jail) age = `Locked up · day ${d}`;
+    else if (d === 0) age = 'New today';
+    else if (lastCall) age = left === 1 ? 'Last call · jail tomorrow' : `Last call · jail in ${left} days`;
+    else age = `Day ${d} · jail in ${left} days`;
+
+    const cls = ['job'];
+    if (jail) cls.push('job--jail');
+    if (lastCall) cls.push('job--lastcall');
+    if (d === 6) cls.push('job--final');
+    if (m.id === pickedId) cls.push('is-picked');
+    if (m.id === justAddedId) cls.push('is-new');
+
+    const meta = h('div', { class: 'job-meta' });
+    if (jail) {
+      meta.append(iconEl(ICON.lock));
+    } else {
+      meta.append(h('span', { class: 'fuse', 'aria-hidden': 'true' },
+        Array.from({ length: 7 }, (_, i) => h('i', { class: i < left ? 'on' : null }))));
+    }
+    meta.append(h('span', { class: 'job-age' }, age));
+
+    const payLabel = jail ? 'Break out' : lastCall ? 'Last call' : 'Pays';
+
+    return h('li', { class: cls.join(' '), 'data-id': String(m.id) },
+      five0 ? h('div', { class: 'siren' }, 'Five-0 inbound. Finish this now, homie!') : null,
+      h('button', {
+        class: 'job-done', type: 'button', 'data-act': 'done',
+        'aria-label': `Finish "${m.text}" for ${money(reward)}`, icon: ICON.check,
+      }),
+      h('div', { class: 'job-body' }, h('p', { class: 'job-text' }, m.text), meta),
+      h('div', { class: 'job-side' },
+        h('span', { class: 'pay' }, h('small', null, payLabel), h('b', null, money(reward))),
+        h('button', {
+          class: 'job-drop', type: 'button', 'data-act': 'drop',
+          'aria-label': `Drop "${m.text}"`, icon: ICON.x,
+        }),
+      ),
+    );
+  }
+
+  function renderBoard() {
+    const active = [];
+    const jail = [];
+    let five0 = false;
+    missions.forEach((m) => {
+      const d = calculateDaysOld(m.createdAt);
+      if (d >= 7) { jail.push(m); if (d >= 14) five0 = true; } else active.push(m);
+    });
+    activeListEl.replaceChildren(...active.map(jobEl));
+    jailListEl.replaceChildren(...jail.map(jobEl));
+    justAddedId = null;
+
+    const onActive = currentTab === 'active';
+    activeListEl.hidden = !onActive || active.length === 0;
+    emptyStateEl.hidden = !onActive || active.length > 0;
+    jailListEl.hidden = onActive || jail.length === 0;
+    jailEmptyStateEl.hidden = onActive || jail.length > 0;
+
+    tabActive.setAttribute('aria-selected', String(onActive));
+    tabJail.setAttribute('aria-selected', String(!onActive));
+    tabActive.tabIndex = onActive ? 0 : -1;
+    tabJail.tabIndex = onActive ? -1 : 0;
+
+    $('count-active').textContent = String(active.length);
+    const jailCount = $('count-jail');
+    jailCount.textContent = String(jail.length);
+    jailCount.classList.toggle('is-hot', jail.length > 0);
+    jailCount.classList.toggle('is-five0', five0);
+  }
+
+  function renderHeist() {
+    const n = Math.min(visibleCompletedMissions.length, HEIST_SIZE);
+    $('heist-now').textContent = String(n);
+    slotsEl.replaceChildren(...Array.from({ length: HEIST_SIZE }, (_, i) => {
+      const filled = i < n;
+      const li = h('li', {
+        class: ['slot', filled ? 'is-filled' : '', filled && i >= lastBankedCount ? 'is-new' : ''].join(' ').trim(),
+        'aria-label': filled ? `Win ${i + 1} banked` : `Win ${i + 1} open`,
+      });
+      if (filled) li.append(iconEl(ICON.cash)); else li.textContent = String(i + 1);
+      return li;
+    }));
+    lastBankedCount = n;
+
+    completedListEl.replaceChildren(...visibleCompletedMissions.map((text, index) => h('li', null,
+      iconEl(ICON.check),
+      h('span', { class: 'banked-text' }, text),
+      h('button', { class: 'mini-x', type: 'button', 'data-index': String(index), 'aria-label': `Remove "${text}" from banked wins`, icon: ICON.x }),
+    )));
+    completedListEl.hidden = visibleCompletedMissions.length === 0;
+    bankedEmptyEl.hidden = visibleCompletedMissions.length > 0;
+    $('wins-counter').textContent = totalWinsCount.toLocaleString('en-US');
+    $('heist-total').textContent = heistsScored.toLocaleString('en-US');
+  }
+
+  function renderLadder() {
+    const idx = rankIndex(totalCash);
+    $('ladder').replaceChildren(...RANKS.map((r, i) => h('li', {
+      class: i < idx ? 'is-done' : i === idx ? 'is-current' : i === idx + 1 ? 'is-next' : null,
+      'aria-current': i === idx ? 'step' : null,
+    }, h('span', null, r.name), h('span', null, money(r.min)))));
+  }
+
+  function renderDev() {
+    const days = Math.round(simulatedTimeOffset / DAY_MS);
+    $('clock-note').textContent = days ? `Clock +${days} day${days === 1 ? '' : 's'}` : 'Real time';
+  }
+
+  function renderUI() {
+    renderHUD();
+    renderBoard();
+    renderHeist();
+    renderLadder();
+    renderDev();
+    paintSky();
+  }
+
+  // ── Feedback ───────────────────────────────────────────────────────────
+  let toastTimer = 0;
+  function toast(msg, opts = {}) {
+    clearTimeout(toastTimer);
+    const el = h('div', { class: 'toast' },
+      h('span', { class: 'toast-msg' }, msg),
+      opts.amount ? h('span', { class: 'toast-amt' }, opts.amount) : null);
+    if (opts.action) {
+      const btn = h('button', { class: 'toast-action', type: 'button' }, opts.action);
+      btn.addEventListener('click', () => { hide(); opts.onAction(); });
+      el.append(btn);
+    }
+    toastZone.replaceChildren(el);
+    function hide() {
+      clearTimeout(toastTimer);
+      if (!el.isConnected) return;
+      el.classList.add('is-out');
+      setTimeout(() => el.remove(), 220);
+    }
+    toastTimer = setTimeout(hide, opts.duration || 2400);
+  }
+
+  function floatText(fromEl, text) {
+    if (reduceMotion()) return;
+    const r = fromEl.getBoundingClientRect();
+    const f = h('div', { class: 'floater', 'aria-hidden': 'true' }, text);
+    f.style.left = `${r.left + r.width / 2}px`;
+    f.style.top = `${r.top}px`;
+    document.body.append(f);
+    f.addEventListener('animationend', () => f.remove());
+  }
+
+  let cashRaf = 0;
+  function animateCash(from, to) {
+    cancelAnimationFrame(cashRaf);
+    cashEl.classList.remove('is-bump');
+    void cashEl.offsetWidth;
+    cashEl.classList.add('is-bump');
+    if (reduceMotion()) { cashEl.textContent = money(to); return; }
+    cashAnimating = true;
+    const t0 = performance.now();
+    const dur = 750;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      cashEl.textContent = money(from + (to - from) * e);
+      if (k < 1) cashRaf = requestAnimationFrame(step);
+      else { cashAnimating = false; cashEl.textContent = money(totalCash); }
+    };
+    cashRaf = requestAnimationFrame(step);
+  }
+
+  let promoTimer = 0;
+  function showPromo(idx) {
+    const next = RANKS[idx + 1];
+    $('promo-rank').textContent = RANKS[idx].name;
+    $('promo-next').textContent = next ? `Next: ${next.name} at ${money(next.min)}` : 'You run this city now';
+    promo.classList.add('is-on');
+    $('announcer').textContent = `Promoted to ${RANKS[idx].name}`;
+    sfx.rankUp();
+    haptic([30, 40, 30]);
+    confetti.burst(60);
+    clearTimeout(promoTimer);
+    promoTimer = setTimeout(() => promo.classList.remove('is-on'), 3000);
+  }
+
+  // cash & coin confetti
+  const confetti = (() => {
+    const cv = $('fx');
+    const c = cv.getContext('2d');
+    let parts = [];
+    let raf = 0;
+    function size() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(innerWidth * dpr);
+      cv.height = Math.round(innerHeight * dpr);
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function burst(n, origin) {
+      if (reduceMotion()) return;
+      if (!raf) size();
+      for (let i = 0; i < n; i++) {
+        const fromPoint = !!origin;
+        parts.push({
+          x: fromPoint ? origin.x : Math.random() * innerWidth,
+          y: fromPoint ? origin.y : -20 - Math.random() * innerHeight * 0.6,
+          vx: fromPoint ? (Math.random() - 0.5) * 9 : (Math.random() - 0.5) * 2,
+          vy: fromPoint ? -4 - Math.random() * 8 : 1.5 + Math.random() * 2.5,
+          rot: Math.random() * Math.PI * 2,
+          vr: (Math.random() - 0.5) * 0.25,
+          sway: Math.random() * Math.PI * 2,
+          bill: Math.random() < 0.7,
+          s: fromPoint ? 0.7 + Math.random() * 0.3 : 0.9 + Math.random() * 0.5,
+          life: 0,
+        });
+      }
+      if (!raf) raf = requestAnimationFrame(step);
+    }
+    function step() {
+      c.clearRect(0, 0, innerWidth, innerHeight);
+      parts = parts.filter((p) => p.y < innerHeight + 40 && p.life < 420);
+      for (const p of parts) {
+        p.life++;
+        p.vy = Math.min(p.vy + 0.2, p.bill ? 3.4 : 6);
+        p.sway += 0.07;
+        p.vx *= 0.985;
+        p.x += p.vx + Math.sin(p.sway) * (p.bill ? 1.1 : 0.4);
+        p.y += p.vy;
+        p.rot += p.vr;
+        c.save();
+        c.translate(p.x, p.y);
+        c.rotate(p.rot);
+        c.scale(p.s, p.s * Math.cos(p.sway * 1.6));
+        if (p.bill) {
+          c.fillStyle = '#3fae5a';
+          c.fillRect(-14, -7, 28, 14);
+          c.strokeStyle = '#a8f5b8';
+          c.lineWidth = 1;
+          c.strokeRect(-11.5, -4.5, 23, 9);
+          c.fillStyle = '#25803f';
+          c.beginPath();
+          c.arc(0, 0, 3, 0, Math.PI * 2);
+          c.fill();
+        } else {
+          c.fillStyle = '#ffd166';
+          c.beginPath();
+          c.arc(0, 0, 6.5, 0, Math.PI * 2);
+          c.fill();
+          c.strokeStyle = '#c98a1b';
+          c.lineWidth = 1.5;
+          c.stroke();
+        }
+        c.restore();
+      }
+      if (parts.length) raf = requestAnimationFrame(step);
+      else { raf = 0; c.clearRect(0, 0, innerWidth, innerHeight); }
+    }
+    return { burst };
+  })();
+
+  // ── Heist celebration ──────────────────────────────────────────────────
+  let ovClearTimer = 0;
+  let ovHideTimer = 0;
+  let lastFocus = null;
+  function triggerGTAAnimation(promotedIdx) {
+    const parts = [h('div', null, `${HEIST_SIZE} wins banked · Stash `, h('b', null, money(totalCash)))];
+    if (promotedIdx != null) parts.push(h('div', { class: 'ov-promo' }, `Promoted: ${RANKS[promotedIdx].name}`));
+    $('ov-sub').replaceChildren(...parts);
+    lastFocus = document.activeElement;
+    overlay.hidden = false;
+    overlay.setAttribute('aria-hidden', 'false');
+    void overlay.offsetWidth;
+    overlay.classList.add('is-on');
+    $('announcer').textContent = 'Heist scored. Gangsta!';
+    playHeistJingle();
+    haptic([40, 60, 40, 60, 160]);
+    setTimeout(() => {
+      confetti.burst(170);
+      if (!reduceMotion()) {
+        document.body.classList.add('is-shake');
+        setTimeout(() => document.body.classList.remove('is-shake'), 450);
+      }
+    }, 450);
+    ovClearTimer = setTimeout(clearHeist, 1500);
+    ovHideTimer = setTimeout(hideOverlay, 3900);
+  }
+  function clearHeist() {
+    clearTimeout(ovClearTimer);
+    if (visibleCompletedMissions.length === 0) return;
+    visibleCompletedMissions = [];
+    lastBankedCount = 0;
+    saveData();
+    renderUI();
+  }
+  function hideOverlay() {
+    if (overlay.hidden) return;
+    clearTimeout(ovHideTimer);
+    clearHeist();
+    overlay.classList.remove('is-on');
+    overlay.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { overlay.hidden = true; }, 450);
+    if (lastFocus && lastFocus.isConnected) lastFocus.focus({ preventScroll: true });
+  }
+  overlay.addEventListener('click', hideOverlay);
+
+  // ── Actions ────────────────────────────────────────────────────────────
+  function collapseThen(card, done) {
+    if (!card || reduceMotion()) { done(); return; }
+    const hgt = card.offsetHeight;
+    card.style.height = `${hgt}px`;
+    card.style.overflow = 'hidden';
+    void card.offsetHeight;
+    card.style.transition = 'height .2s ease, padding .2s ease, margin .2s ease, border-width .2s';
+    card.style.height = '0px';
+    card.style.paddingTop = '0px';
+    card.style.paddingBottom = '0px';
+    card.style.borderWidth = '0px';
+    card.style.marginTop = '-10px';
+    setTimeout(done, 210);
+  }
+
+  function addMission(text) {
+    let id = Date.now();
+    while (missions.some((m) => m.id === id)) id++;
+    missions.push({ id, text, createdAt: now() });
+    justAddedId = id;
+    if (currentTab !== 'active') currentTab = 'active';
+    saveData();
+    renderUI();
+    sfx.add();
+    haptic(12);
+    toast('Job on the board', { amount: `pays ${money(50)}` });
+  }
+
+  function completeMission(id, btn) {
+    const index = missions.findIndex((m) => m.id === id);
+    if (index < 0) return;
+    const card = btn.closest('.job');
+    if (card.classList.contains('is-done')) return;
+    const m = missions[index];
+    const reward = calculateReward(calculateDaysOld(m.createdAt));
+    const prevCash = totalCash;
+    const prevRank = rankIndex(prevCash);
+
+    totalCash += reward;
+    totalWinsCount++;
+    visibleCompletedMissions.push(m.text);
+    missions.splice(index, 1);
+    if (pickedId === id) pickedId = null;
+    const heistDone = visibleCompletedMissions.length >= HEIST_SIZE;
+    if (heistDone) heistsScored++;
+    saveData();
+
+    sfx.coin();
+    haptic(25);
+    floatText(btn, `+${money(reward)}`);
+    const r = btn.getBoundingClientRect();
+    confetti.burst(14, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    animateCash(prevCash, totalCash);
+
+    const newRank = rankIndex(totalCash);
+    const promoted = newRank > prevRank ? newRank : null;
+
+    const finish = () => {
+      renderUI();
+      if (heistDone) setTimeout(() => triggerGTAAnimation(promoted), 380);
+      else if (promoted != null) showPromo(promoted);
+      else toast(`${pick(HYPE)} · Heist ${visibleCompletedMissions.length}/${HEIST_SIZE}`, { amount: `+${money(reward)}` });
+    };
+    if (reduceMotion()) { finish(); return; }
+    card.classList.add('is-done');
+    setTimeout(() => collapseThen(card, finish), 430);
+  }
+
+  function dropMission(id, btn) {
+    const index = missions.findIndex((m) => m.id === id);
+    if (index < 0) return;
+    const card = btn.closest('.job');
+    if (card.classList.contains('is-dropped')) return;
+    const [m] = missions.splice(index, 1);
+    if (pickedId === id) pickedId = null;
+    saveData();
+    sfx.drop();
+    haptic(10);
+    const undo = () => {
+      missions.splice(Math.min(index, missions.length), 0, m);
+      saveData();
+      renderUI();
+      toast('Job is back');
+    };
+    const finish = () => { renderUI(); toast('Job dropped', { action: 'Undo', onAction: undo, duration: 5000 }); };
+    if (reduceMotion()) { finish(); return; }
+    card.classList.add('is-dropped');
+    setTimeout(() => collapseThen(card, finish), 280);
+  }
+
+  function unbank(index) {
+    const [text] = visibleCompletedMissions.splice(index, 1);
+    if (text === undefined) return;
+    lastBankedCount = visibleCompletedMissions.length;
+    saveData();
+    renderUI();
+    toast('Removed from banked wins', {
+      action: 'Undo',
+      duration: 5000,
+      onAction: () => {
+        visibleCompletedMissions.splice(Math.min(index, visibleCompletedMissions.length), 0, text);
+        lastBankedCount = visibleCompletedMissions.length;
+        saveData();
+        renderUI();
+      },
+    });
+  }
+
+  let rolling = false;
+  function pickForMe() {
+    if (rolling) return;
+    const list = currentTab === 'active' ? activeListEl : jailListEl;
+    const cards = [...list.querySelectorAll('.job')];
+    if (!cards.length) {
+      toast(currentTab === 'active' ? 'Add a job first' : 'Jail is empty. Nice.');
+      return;
+    }
+    list.querySelectorAll('.is-picked').forEach((c) => c.classList.remove('is-picked'));
+    const target = Math.floor(Math.random() * cards.length);
+    const lock = (card) => {
+      rolling = false;
+      pickBtn.disabled = false;
+      pickBtn.classList.remove('is-rolling');
+      pickedId = Number(card.dataset.id);
+      card.classList.add('is-picked');
+      card.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+      card.querySelector('.job-done').focus({ preventScroll: true });
+      sfx.lock();
+      haptic(20);
+      toast('Just this one. Go.');
+    };
+    if (cards.length === 1 || reduceMotion()) { lock(cards[target]); return; }
+    rolling = true;
+    pickBtn.disabled = true;
+    pickBtn.classList.add('is-rolling');
+    const total = Math.max(10, Math.min(18, cards.length * 3));
+    let i = 0;
+    const spin = () => {
+      cards.forEach((c) => c.classList.remove('is-scan'));
+      const idx = (((target - (total - 1 - i)) % cards.length) + cards.length) % cards.length;
+      if (i < total - 1) {
+        cards[idx].classList.add('is-scan');
+        sfx.tick();
+        i++;
+        setTimeout(spin, 45 + i * i * 2.2);
+      } else {
+        lock(cards[idx]);
+      }
+    };
+    spin();
+  }
+
+  // ── Events ─────────────────────────────────────────────────────────────
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) {
+      form.classList.remove('is-shake');
+      void form.offsetWidth;
+      form.classList.add('is-shake');
+      input.focus();
+      return;
+    }
+    input.value = '';
+    addMission(text);
+    input.focus();
+  });
+
+  [activeListEl, jailListEl].forEach((list) => list.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const id = Number(btn.closest('.job').dataset.id);
+    if (btn.dataset.act === 'done') completeMission(id, btn);
+    else dropMission(id, btn);
+  }));
+
+  completedListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-index]');
+    if (btn) unbank(Number(btn.dataset.index));
+  });
+
+  function setTab(tab, focus) {
+    currentTab = tab;
+    renderBoard();
+    if (focus) (tab === 'active' ? tabActive : tabJail).focus();
+  }
+  tabActive.addEventListener('click', () => setTab('active'));
+  tabJail.addEventListener('click', () => setTab('jail'));
+  $('tab-active').parentElement.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setTab(currentTab === 'active' ? 'jail' : 'active', true);
+    }
+  });
+
+  pickBtn.addEventListener('click', pickForMe);
+
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    store.set('gta_muted', muted);
+    renderHUD();
+    if (!muted) sfx.add();
+  });
+
+  $('clear-all-btn').addEventListener('click', () => {
+    if (typeof nukeDialog.showModal === 'function') nukeDialog.showModal();
+    else if (window.confirm('Wipe all missions, cash, and memory?')) nuke();
+  });
+  nukeDialog.addEventListener('close', () => {
+    if (nukeDialog.returnValue === 'nuke') nuke();
+    nukeDialog.returnValue = '';
+  });
+  function nuke() {
+    missions = [];
+    visibleCompletedMissions = [];
+    totalWinsCount = 0;
+    totalCash = 0;
+    simulatedTimeOffset = 0;
+    heistsScored = 0;
+    pickedId = null;
+    lastBankedCount = 0;
+    saveData();
+    renderUI();
+    paintSky(true);
+    toast('Fresh start. Board wiped.');
+  }
+
+  $('skip-day').addEventListener('click', () => {
+    simulatedTimeOffset += DAY_MS;
+    saveData();
+    renderUI();
+    paintSky(true);
+    toast(`Clock moved to ${new Date(now()).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}`);
+  });
+  $('reset-clock').addEventListener('click', () => {
+    simulatedTimeOffset = 0;
+    saveData();
+    renderUI();
+    paintSky(true);
+    toast('Clock back to real time');
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !overlay.hidden) { hideOverlay(); return; }
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+    if (!typing && (e.key === '/' || e.key === 'n') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      input.focus();
+    }
+  });
+
+  // Rotate placeholder ideas so a blank box never stares back.
+  let ideaIndex = 0;
+  setInterval(() => {
+    if (document.activeElement === input || input.value) return;
+    ideaIndex = (ideaIndex + 1) % PLACEHOLDER_IDEAS.length;
+    input.placeholder = `e.g. ${PLACEHOLDER_IDEAS[ideaIndex]}`;
+  }, 3500);
+
+  // Jobs age by the hour, so refresh when something would actually change.
+  let ageSignature = '';
+  function refreshIfAged() {
+    const sig = missions.map((m) => calculateDaysOld(m.createdAt)).join(',') + '|' + skyPhase();
+    if (sig !== ageSignature) { ageSignature = sig; renderUI(); }
+  }
+  setInterval(refreshIfAged, 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfAged(); });
+  window.addEventListener('hashchange', () => paintSky(true));
+
+  let resizeTimer = 0;
+  const queueSky = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => paintSky(), 120); };
+  if ('ResizeObserver' in window) new ResizeObserver(queueSky).observe($('hero-sky'));
+  else window.addEventListener('resize', queueSky);
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  renderUI();
+  ageSignature = missions.map((m) => calculateDaysOld(m.createdAt)).join(',') + '|' + skyPhase();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => paintSky(true));
+})();
+</script>
+</body>
+</html>
