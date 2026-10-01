@@ -1067,6 +1067,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 }
 .btn--danger { border-color: rgba(255, 51, 73, .55); color: #ff6b7a; background: rgba(255, 51, 73, .06); }
 .btn--solid-danger { border: 0; background: var(--siren-r); color: var(--ink); }
+.backup { display: flex; flex-wrap: wrap; gap: 8px; }
 .clock-note { font: 600 13px/1 var(--font-hud); letter-spacing: .1em; text-transform: uppercase; }
 
 /* ───────────────────────── toast, floaters, promo ───────────────────────── */
@@ -1657,7 +1658,12 @@ body.is-shake .wrap { animation: shake .4s; }
         <span class="clock-note" id="clock-note">Real time</span>
       </div>
     </details>
-    <button class="btn btn--danger" id="clear-all-btn" type="button">Nuke data</button>
+    <div class="backup">
+      <button class="btn" id="export-btn" type="button">Save backup</button>
+      <button class="btn" id="import-btn" type="button">Load backup</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+      <button class="btn btn--danger" id="clear-all-btn" type="button">Nuke data</button>
+    </div>
   </footer>
 </main>
 
@@ -3437,6 +3443,40 @@ body.is-shake .wrap { animation: shake .4s; }
     paintSky(true);
     toast('Fresh start. Board wiped.');
   }
+
+  // ── Backup: progress only lives in this browser, so offer a file copy ──
+  const BACKUP_KEYS = ['gta_missions', 'gta_visible_completed', 'gta_wins', 'gta_cash', 'gta_time_offset',
+    'gta_heists', 'gta_big_score', 'gta_big_trophies', 'gta_tomorrow', 'gta_muted', 'gta_seeded'];
+  $('export-btn').addEventListener('click', () => {
+    const data = {};
+    BACKUP_KEYS.forEach((k) => { if (store.has(k)) data[k] = store.get(k, null); });
+    const blob = new Blob([JSON.stringify({ app: 'mission-board', savedAt: Date.now(), data }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: `mission-board-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Backup saved to your downloads');
+  });
+  $('import-btn').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => toast("Couldn't read that file");
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!parsed || parsed.app !== 'mission-board' || typeof parsed.data !== 'object') throw new Error('bad file');
+        BACKUP_KEYS.forEach((k) => { if (k in parsed.data) store.set(k, parsed.data[k]); });
+        toast('Backup loaded. Reloading…');
+        setTimeout(() => location.reload(), 600);
+      } catch { toast("That isn't a Mission Board backup"); }
+    };
+    reader.readAsText(file);
+  });
 
   $('skip-day').addEventListener('click', () => {
     simulatedTimeOffset += DAY_MS;
