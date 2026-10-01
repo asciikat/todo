@@ -1,18 +1,13 @@
-// Cloud sync settings for Mission Board (optional).
+// Cloud sync settings for Mission Board.
 //
-// Leave this as null and the board works on each device on its own.
-// To sync your phone and desktop, follow "Turn on sync" in README.md, then
-// replace null below with the firebaseConfig values Firebase gives you.
-//
-// These values are not secret. Your board stays private because of the
-// security rules in the README: only your Google account can read or write it.
-window.MISSION_BOARD_FIREBASE = null;
-
-/* Example — yours will have your own values:
+// Set to null to switch sync off; the board then works on each device on its own.
+// These values are not secret. Your board stays private because of the Firestore
+// security rules (see README.md): only your Google account can read or write it.
 window.MISSION_BOARD_FIREBASE = {
-  apiKey: 'AIza...',
-  authDomain: 'my-mission-board.firebaseapp.com',
-  projectId: 'my-mission-board',
-  appId: '1:1234567890:web:abc123',
+  apiKey: 'AIzaSyCy_5de4xxemB2J7a_t2q7OgEaGOW6y2bI',
+  authDomain: 'todo-d2b10.firebaseapp.com',
+  projectId: 'todo-d2b10',
+  storageBucket: 'todo-d2b10.firebasestorage.app',
+  messagingSenderId: '289567867545',
+  appId: '1:289567867545:web:7fcd38264da0ff98be6e08',
 };
-*/
