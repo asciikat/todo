@@ -1660,7 +1660,7 @@ body.is-shake .wrap { animation: shake .4s; }
     </details>
     <div class="backup">
       <button class="btn" id="export-btn" type="button">Save backup</button>
-      <button class="btn" id="import-btn" type="button">Load backup</button>
+      <button class="btn" id="import-btn" type="button">Merge backup</button>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
       <button class="btn btn--danger" id="clear-all-btn" type="button">Nuke data</button>
     </div>
@@ -1796,6 +1796,10 @@ body.is-shake .wrap { animation: shake .4s; }
   let bigScore = cleanBig(store.get('gta_big_score', null));
   let tomorrowMissions = (Array.isArray(store.get('gta_tomorrow', [])) ? store.get('gta_tomorrow', []) : [])
     .filter((m) => m && typeof m.text === 'string' && Number.isFinite(m.id) && Number.isFinite(m.startsAt));
+  // Ids of jobs finished or dropped on this device, so a merge doesn't bring them back.
+  let gone = (Array.isArray(store.get('gta_gone', [])) ? store.get('gta_gone', []) : []).filter(Number.isFinite);
+  const markGone = (id) => { if (!gone.includes(id)) gone = gone.concat(id).slice(-500); };
+  const unmarkGone = (id) => { gone = gone.filter((g) => g !== id); };
   let trophies = (Array.isArray(store.get('gta_big_trophies', [])) ? store.get('gta_big_trophies', []) : [])
     .filter((t) => t && typeof t.text === 'string' && Number.isFinite(t.at));
 
@@ -1917,6 +1921,7 @@ body.is-shake .wrap { animation: shake .4s; }
     store.set('gta_big_score', bigScore);
     store.set('gta_big_trophies', trophies);
     store.set('gta_tomorrow', tomorrowMissions);
+    store.set('gta_gone', gone);
   }
 
   // First visit: three starter jobs that teach the moves.
@@ -2753,6 +2758,7 @@ body.is-shake .wrap { animation: shake .4s; }
     totalWinsCount++;
     visibleCompletedMissions.push(m.text);
     missions.splice(index, 1);
+    markGone(id);
     if (pickedId === id) pickedId = null;
     const heistDone = visibleCompletedMissions.length >= HEIST_SIZE;
     if (heistDone) heistsScored++;
@@ -2786,12 +2792,14 @@ body.is-shake .wrap { animation: shake .4s; }
     const card = btn.closest('.job');
     if (card.classList.contains('is-dropped')) return;
     const [m] = missions.splice(index, 1);
+    markGone(id);
     if (pickedId === id) pickedId = null;
     saveData();
     sfx.drop();
     haptic(10);
     const undo = () => {
       missions.splice(Math.min(index, missions.length), 0, m);
+      unmarkGone(m.id);
       saveData();
       renderUI();
       toast('Job is back');
@@ -2885,11 +2893,12 @@ body.is-shake .wrap { animation: shake .4s; }
     const index = tomorrowMissions.findIndex((m) => m.id === id);
     if (index < 0 || card.classList.contains('is-dropped')) return;
     const [m] = tomorrowMissions.splice(index, 1);
+    markGone(id);
     openTray = null;
     saveData();
     sfx.drop();
     haptic(10);
-    const undo = () => { tomorrowMissions.push(m); saveData(); renderUI(); };
+    const undo = () => { tomorrowMissions.push(m); unmarkGone(m.id); saveData(); renderUI(); };
     animateOut(card, 'is-dropped', () => {
       renderUI();
       toast('Job dropped', { action: 'Undo', onAction: undo, duration: 5000 });
@@ -3434,6 +3443,7 @@ body.is-shake .wrap { animation: shake .4s; }
     heistsScored = 0;
     bigScore = null;
     trophies = [];
+    gone = [];
     tomorrowMissions = [];
     openTray = null;
     pickedId = null;
@@ -3446,7 +3456,63 @@ body.is-shake .wrap { animation: shake .4s; }
 
   // ── Backup: progress only lives in this browser, so offer a file copy ──
   const BACKUP_KEYS = ['gta_missions', 'gta_visible_completed', 'gta_wins', 'gta_cash', 'gta_time_offset',
-    'gta_heists', 'gta_big_score', 'gta_big_trophies', 'gta_tomorrow', 'gta_muted', 'gta_seeded'];
+    'gta_heists', 'gta_big_score', 'gta_big_trophies', 'gta_tomorrow', 'gta_gone', 'gta_muted', 'gta_seeded'];
+
+  // Merge a backup into what is on this device. Nothing is overwritten:
+  // jobs are combined by id, jobs finished or dropped on either device stay gone,
+  // and cash, wins and heists keep the higher of the two numbers.
+  function mergeBackup(d) {
+    const isJob = (m, key) => m && typeof m.text === 'string' && Number.isFinite(m.id) && Number.isFinite(m[key]);
+    const list = (v) => (Array.isArray(v) ? v : []);
+    const goneSet = new Set([...gone, ...list(d.gta_gone).filter(Number.isFinite)]);
+    const sum = { added: 0, removed: 0, lined: 0 };
+
+    const before = missions.length + tomorrowMissions.length;
+    missions = missions.filter((m) => !goneSet.has(m.id));
+    tomorrowMissions = tomorrowMissions.filter((m) => !goneSet.has(m.id));
+    sum.removed = before - missions.length - tomorrowMissions.length;
+
+    const have = new Set([...missions, ...tomorrowMissions].map((m) => m.id));
+    list(d.gta_missions).filter((m) => isJob(m, 'createdAt')).forEach((m) => {
+      if (goneSet.has(m.id) || have.has(m.id)) return;
+      missions.push(m); have.add(m.id); sum.added++;
+    });
+    list(d.gta_tomorrow).filter((m) => isJob(m, 'startsAt')).forEach((m) => {
+      if (goneSet.has(m.id) || have.has(m.id)) return;
+      tomorrowMissions.push(m); have.add(m.id); sum.lined++;
+    });
+
+    const bank = visibleCompletedMissions.slice();
+    list(d.gta_visible_completed).filter((t) => typeof t === 'string').forEach((t) => { if (!bank.includes(t)) bank.push(t); });
+    visibleCompletedMissions = bank.slice(0, HEIST_SIZE - 1);
+    lastBankedCount = visibleCompletedMissions.length;
+
+    totalCash = Math.max(totalCash, toInt(d.gta_cash));
+    totalWinsCount = Math.max(totalWinsCount, toInt(d.gta_wins));
+    heistsScored = Math.max(heistsScored, toInt(d.gta_heists));
+
+    const inBig = cleanBig(d.gta_big_score);
+    if (inBig && !bigScore) bigScore = inBig;
+    else if (inBig && bigScore && inBig.id === bigScore.id) {
+      inBig.preps.forEach((pr) => {
+        const mine = bigScore.preps.find((x) => x.id === pr.id);
+        if (mine) mine.done = mine.done || pr.done;
+        else if (bigScore.preps.length < MAX_PREPS) bigScore.preps.push(pr);
+      });
+    }
+
+    const seen = new Set(trophies.map((t) => `${t.text}|${t.at}`));
+    list(d.gta_big_trophies).filter((t) => t && typeof t.text === 'string' && Number.isFinite(t.at)).forEach((t) => {
+      if (!seen.has(`${t.text}|${t.at}`)) { trophies.push(t); seen.add(`${t.text}|${t.at}`); }
+    });
+    trophies = trophies.sort((a, b) => b.at - a.at).slice(0, 100);
+
+    gone = Array.from(goneSet).slice(-500);
+    store.set('gta_seeded', true);
+    saveData();
+    renderUI();
+    return sum;
+  }
   $('export-btn').addEventListener('click', () => {
     const data = {};
     BACKUP_KEYS.forEach((k) => { if (store.has(k)) data[k] = store.get(k, null); });
@@ -3470,9 +3536,12 @@ body.is-shake .wrap { animation: shake .4s; }
       try {
         const parsed = JSON.parse(String(reader.result));
         if (!parsed || parsed.app !== 'mission-board' || typeof parsed.data !== 'object') throw new Error('bad file');
-        BACKUP_KEYS.forEach((k) => { if (k in parsed.data) store.set(k, parsed.data[k]); });
-        toast('Backup loaded. Reloading…');
-        setTimeout(() => location.reload(), 600);
+        const sum = mergeBackup(parsed.data || {});
+        const bits = [];
+        if (sum.added) bits.push(`${sum.added} job${sum.added === 1 ? '' : 's'} added`);
+        if (sum.lined) bits.push(`${sum.lined} lined up`);
+        if (sum.removed) bits.push(`${sum.removed} already done elsewhere`);
+        toast(bits.length ? `Merged · ${bits.join(' · ')}` : 'Merged · already up to date', { duration: 4500 });
       } catch { toast("That isn't a Mission Board backup"); }
     };
     reader.readAsText(file);
