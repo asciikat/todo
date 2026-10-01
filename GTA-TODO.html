@@ -788,6 +788,22 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .wanted .star { width: 16px; height: 16px; }
 .wanted .star path { stroke-width: 2; }
 .wanted:active { transform: scale(.92); }
+.heat-row { display: flex; align-items: center; gap: 4px; }
+.heat-reset {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .1);
+  color: var(--smog);
+  cursor: pointer;
+}
+.heat-reset::after { content: ""; position: absolute; inset: -10px -4px; }
+.heat-reset svg { width: 10px; height: 10px; }
 .pay {
   font: 900 24px/1 var(--font-display);
   color: var(--cash);
@@ -2324,9 +2340,12 @@ body.is-shake .wrap { animation: shake .4s; }
       }),
       h('button', { class: 'job-body', type: 'button', 'data-act': 'toggle', 'aria-expanded': String(open), 'aria-controls': `tray-${key}` },
         h('span', { class: 'job-text' }, m.text), meta),
-      h('div', { class: 'job-side' }, h('span', { class: 'pay' }, money(reward)), stars),
+      h('div', { class: 'job-side' }, h('span', { class: 'pay' }, money(reward)),
+        h('div', { class: 'heat-row' },
+          heat ? h('button', { class: 'heat-reset', type: 'button', 'data-act': 'cool', 'aria-label': `Reset stars on "${m.text}"`, icon: ICON.x }) : null,
+          stars)),
       h('div', { class: 'job-tray', id: `tray-${key}`, hidden: !open },
-        heat ? h('button', { class: 'tray-btn', type: 'button', 'data-act': 'cool' }, iconEl(ICON.star), 'Lose the heat') : null,
+        heat ? h('button', { class: 'tray-btn', type: 'button', 'data-act': 'cool' }, iconEl(ICON.star), 'Reset stars') : null,
         jail ? null : h('button', { class: 'tray-btn tray-btn--dusk', type: 'button', 'data-act': 'tomorrow' }, iconEl(ICON.moon), 'Push to tomorrow'),
         h('button', { class: 'tray-btn tray-btn--danger', type: 'button', 'data-act': 'drop' }, iconEl(ICON.x), 'Drop job'),
       ),
@@ -2947,13 +2966,19 @@ body.is-shake .wrap { animation: shake .4s; }
   function coolDown(id, card) {
     const m = missions.find((x) => x.id === id);
     if (!m) return;
+    const prev = { heat: m.heat, heatAt: m.heatAt, heatUntil: m.heatUntil };
     m.heat = 0;
     m.heatAt = 0;
     openTray = null;
     saveData();
     sfx.sirenDown();
-    flip(card.closest('.jobs'), renderUI);
-    toast("Heat's off");
+    const list = card.closest('.jobs');
+    flip(list, renderUI);
+    toast('Stars reset', {
+      action: 'Undo',
+      duration: 4000,
+      onAction: () => { Object.assign(m, prev); saveData(); flip(list, renderUI); },
+    });
   }
 
   function toggleTray(card) {
